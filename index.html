@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DONY BURGUER'S - SISTEMA SOBERANO JDP (MOTOBOY)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDK Compat -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    
+    <!-- Leaflet Engine -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --cyan: #06b6d4;
+            --gold: #fde047;
+            --slate: #020617;
+            --card: #0f172a;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--slate);
+        }
+        .terminal-text {
+            font-family: 'Orbitron', sans-serif;
+        }
+        .text-gold { color: var(--gold) !important; }
+        .border-gold { border-color: var(--gold) !important; }
+        .bg-gold { background-color: var(--gold) !important; }
+        .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(80%); }
+
+        /* Animação suave para o menu flutuante */
+        #painelLateral {
+            transition: transform 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-gold relative">
+
+    <!-- BOTÃO FLUTUANTE SUPERIOR PARA ABRIR AS CORRIDAS -->
+    <div class="absolute top-4 left-4 z-20">
+        <button onclick="alternarPainelCorridas()" class="bg-[#020617]/90 border-2 border-cyan-500 hover:border-gold text-cyan-400 hover:text-gold px-4 py-3 rounded-xl shadow-[0_0_15px_rgba(6,182,212,0.4)] flex items-center gap-2 terminal-text text-xs font-black uppercase backdrop-blur-md transition-all">
+            <i class="fas fa-list-ul text-sm"></i> CORRIDAS DISPONÍVEIS
+            <span id="badgeQtd" class="bg-cyan-500 text-black px-2 py-0.5 rounded-full text-[10px] font-black ml-1">0</span>
+        </button>
+    </div>
+
+    <!-- PAINEL LATERAL FLUTUANTE (GAVETA DE CORRIDAS) -->
+    <div id="painelLateral" class="absolute top-0 left-0 h-full w-full md:w-[380px] bg-[#020617]/95 backdrop-blur-xl border-r-2 border-cyan-500 flex flex-col z-30 transform -translate-x-full shadow-2xl">
+        <div class="p-4 border-b border-zinc-800 bg-[#070d19] flex justify-between items-center">
+            <h2 class="terminal-text text-cyan-400 font-black text-xs tracking-widest flex items-center gap-2">
+                <i class="fas fa-satellite-dish animate-pulse"></i> FILA DE EXPEDIÇÃO
+            </h2>
+            <div class="flex items-center gap-2">
+                <button onclick="limparTodosFantasmas()" class="text-red-500 hover:text-red-400 text-xs font-black px-2 py-1 border border-red-500/40 rounded bg-red-950/30 uppercase" title="Apagar todos os pedidos salvos"><i class="fas fa-trash-alt"></i> LIMPAR TUDO</button>
+                <button onclick="alternarPainelCorridas()" class="text-zinc-400 hover:text-white text-lg p-1"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto p-3 space-y-3" id="listaFilaGeral">
+            <p class="text-center text-zinc-600 text-xs py-10">Conectando ao banco de dados...</p>
+        </div>
+    </div>
+
+    <!-- ÁREA TOTAL DO MAPA -->
+    <div class="flex-1 flex flex-col h-full relative z-0">
+        <div id="map" class="flex-1 z-0"></div>
+
+        <!-- PAINEL DE CONTROLE SUPREMO (INFERIOR) -->
+        <div class="absolute bottom-0 w-full bg-[#020617]/95 backdrop-blur-lg p-6 rounded-t-3xl border-t-2 border-cyan-500 z-10 box-border">
+            
+            <!-- ENTRADA DE ENDEREÇO MANUAL (EMERGÊNCIA) -->
+            <div class="flex gap-2 mb-4">
+                <input type="text" id="inputEndereco" class="flex-1 p-3 bg-[#0d0e12] border border-cyan-500 rounded-lg text-cyan-400 font-bold uppercase placeholder-cyan-800/40 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-xs" placeholder="[EMERGÊNCIA] DIGITE O ENDEREÇO DO CLIENTE...">
+                <button onclick="buscarEnderecoManual()" class="bg-cyan-500 hover:bg-cyan-600 text-black px-4 py-2 rounded-lg font-black uppercase transition-all duration-200"><i class="fas fa-search"></i></button>
+            </div>
+
+            <!-- INFOS DO PEDIDO E STATUS GPS -->
+            <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-3">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] terminal-text text-cyan-400 border border-cyan-500/30 px-2 py-0.5 rounded">ID CARREGADO:</span>
+                        <span id="displayPedidoID" class="text-[11px] terminal-text text-white font-black">NENHUM</span>
+                    </div>
+                    <p id="entCliente" class="text-gold font-black text-lg uppercase mt-1">AGUARDANDO PEDIDO...</p>
+                    <p id="entEndereco" class="text-zinc-400 text-xs uppercase truncate max-w-xs">---</p>
+                </div>
+                <div id="statusGPS" class="text-[10px] terminal-text font-black text-red-500 uppercase border border-red-500/30 px-3 py-1 rounded bg-red-950/20">🔴 OFFLINE</div>
+            </div>
+
+            <!-- BOTÕES DE CONTROLE DE ROTA -->
+            <div class="flex gap-2">
+                <button id="btnRota" onclick="alternarRastreamento()" class="flex-1 bg-gold hover:bg-yellow-500 text-black font-black py-4 rounded-xl shadow-[0_0_15px_rgba(253,224,113,0.3)] uppercase terminal-text text-sm transition-all duration-200">INICIAR ROTA</button>
+                <button onclick="finalizarCorridaCompleta()" class="bg-red-600 hover:bg-red-700 text-white font-black px-5 rounded-xl transition-all duration-200 shadow-lg" title="Finalizar Corrida e Limpar Firebase"><i class="fas fa-check-double"></i> FINALIZAR</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = { databaseURL: "https://dony-burguers-default-rtdb.firebaseio.com" };
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const LOJA_ID = 'LEOVARDIOS_burguer_2026';
+
+        const map = L.map('map').setView([-2.9903, -60.0673], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        let markerCliente = null, markerMotoboy = null, watchId = null, emRota = false;
+        let idPedidoAtual = "NENHUM";
+        let producaoPendentes = {}, rAtivos = {};
+
+        function alternarPainelCorridas() {
+            const painel = document.getElementById('painelLateral');
+            painel.classList.toggle('-translate-x-full');
+        }
+
+        db.ref(`lojas/${LOJA_ID}`).on('value', snap => {
+            const data = snap.val() || {};
+            producaoPendentes = data.producao_pendente || {};
+            rAtivos = data.rastreio_ativo || {};
+            processarFilaEVisualizacaoGeral();
+        });
+
+        // LEITURA DIRETA DO PEDIDO ATIVO EM ENTREGA
+        db.ref(`lojas/${LOJA_ID}/pedido_em_entrega`).on('value', (snapshot) => {
+            const pedido = snapshot.val();
+            if (pedido && pedido.id) {
+                idPedidoAtual = pedido.id;
+                document.getElementById('displayPedidoID').innerText = idPedidoAtual;
+                
+                const nomeCliente = pedido.cliente || "CLIENTE S/N";
+                const enderecoCliente = pedido.endereco || "ENDEREÇO NÃO LOCALIZADO";
+
+                document.getElementById('entCliente').innerText = nomeCliente.toUpperCase();
+                document.getElementById('entEndereco').innerText = enderecoCliente.toUpperCase();
+
+                if (pedido.latDestino && pedido.lngDestino) {
+                    map.setView([pedido.latDestino, pedido.lngDestino], 17);
+                    if(markerCliente) map.removeLayer(markerCliente);
+                    markerCliente = L.marker([pedido.latDestino, pedido.lngDestino]).addTo(map).bindPopup(`DESTINO: ${nomeCliente}`).openPopup();
+                }
+            } else {
+                if (!emRota) {
+                    idPedidoAtual = "NENHUM";
+                    document.getElementById('displayPedidoID').innerText = "NENHUM";
+                    document.getElementById('entCliente').innerText = "AGUARDANDO PEDIDO...";
+                    document.getElementById('entEndereco').innerText = "---";
+                    if(markerCliente) { map.removeLayer(markerCliente); markerCliente = null; }
+                }
+            }
+        });
+
+        function processarFilaEVisualizacaoGeral() {
+            const container = document.getElementById('listaFilaGeral');
+            const badgeQtd = document.getElementById('badgeQtd');
+            const todosIds = new Set([...Object.keys(producaoPendentes), ...Object.keys(rAtivos)]);
+
+            badgeQtd.innerText = todosIds.size;
+
+            if (todosIds.size === 0) {
+                container.innerHTML = `<div class="text-center py-10 text-zinc-600 text-xs uppercase">Nenhum pedido disponível</div>`;
+                return;
+            }
+
+            let html = "";
+            todosIds.forEach(id => {
+                const pendente = producaoPendentes[id];
+                const r = rAtivos[id];
+
+                let mesa = r?.cliente_nome || pendente?.mesa || "DELIVERY";
+                let total = pendente?.total || r?.total || 0;
+                let statusInfo = "AGUARDANDO";
+                let statusColor = "bg-red-500 text-white";
+
+                if (r && (r.na_pista === true || r.status === "em_rota")) {
+                    statusInfo = "EM ROTA 🛵";
+                    statusColor = "bg-green-500 text-black";
+                } else if ((pendente && (pendente.status === "PRONTO" || pendente.status === "Pendente")) || (r && (r.status === "PRONTO_PARA_ENTREGA" || r.status === "PRONTO"))) {
+                    statusInfo = "PRONTO / COLETAR 📦";
+                    statusColor = "bg-cyan-500 text-black";
+                }
+
+                html += `
+                    <div class="p-3 bg-[#0f172a] border border-zinc-800 rounded-lg hover:border-cyan-500 transition-all flex justify-between items-center">
+                        <div class="flex-1 cursor-pointer" onclick="carregarPedidoProntoParaRota('${id}'); alternarPainelCorridas();">
+                            <div class="flex justify-between items-center mb-1 pr-2">
+                                <span class="text-[10px] terminal-text text-zinc-500">${id}</span>
+                                <span class="text-[9px] font-black px-2 py-0.5 rounded uppercase ${statusColor}">${statusInfo}</span>
+                            </div>
+                            <div class="text-xs font-black text-white uppercase truncate">${mesa}</div>
+                            <div class="text-[10px] text-zinc-400 mt-1">Total: R$ ${parseFloat(total).toFixed(2)}</div>
+                        </div>
+                        <button onclick="deletarPedidoEspecífico('${id}')" class="text-red-500 hover:text-red-400 p-2 text-sm" title="Apagar Pedido Fantasma">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // CARREGAR PEDIDO SELECIONADO NA TELA E MAPA
+        async function carregarPedidoProntoParaRota(id) {
+            const r = rAtivos[id];
+            const pendente = producaoPendentes[id];
+
+            const clienteNome = r?.cliente_nome || pendente?.mesa || "CLIENTE S/N";
+            const address = r?.endereco || "Manaus, Amazonas, Brasil";
+            let lat = r?.latDestino || -2.9903;
+            let lng = r?.lngDestino || -60.0673;
+
+            if (!r?.latDestino && address.length > 5) {
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ", Manaus")}`);
+                    const json = await res.json();
+                    if (json && json.length > 0) {
+                        lat = parseFloat(json[0].lat);
+                        lng = parseFloat(json[0].lon);
+                    }
+                } catch (e) {}
+            }
+
+            idPedidoAtual = id;
+            await db.ref(`lojas/${LOJA_ID}/pedido_em_entrega`).set({ 
+                id, 
+                cliente: clienteNome, 
+                endereco: address, 
+                latDestino: lat, 
+                lngDestino: lng, 
+                timestamp: Date.now() 
+            });
+
+            await db.ref(`lojas/${LOJA_ID}/rastreio_ativo/${id}`).update({
+                cliente_nome: clienteNome,
+                endereco: address,
+                latDestino: lat,
+                lngDestino: lng,
+                status: "PRONTO_PARA_ENTREGA"
+            });
+        }
+
+        async function alternarRastreamento() {
+            if(!emRota) {
+                if (idPedidoAtual === "NENHUM") return alert("SELECIONE UM PEDIDO ANTES DE INICIAR!");
+                emRota = true;
+                document.getElementById('btnRota').innerText = "EM ROTA...";
+                document.getElementById('statusGPS').innerText = "🟢 TRANSMITINDO";
+                document.getElementById('statusGPS').className = "text-[10px] terminal-text font-black text-green-400 uppercase border border-green-500/30 px-3 py-1 rounded bg-green-950/20";
+
+                db.ref(`lojas/${LOJA_ID}/rastreio_ativo/${idPedidoAtual}`).update({ status: "em_rota", na_pista: true });
+
+                watchId = navigator.geolocation.watchPosition(pos => {
+                    if (!emRota || idPedidoAtual === "NENHUM") return;
+                    const {latitude, longitude} = pos.coords;
+
+                    db.ref(`lojas/${LOJA_ID}/motoboy_status`).set({ latitude, longitude, online: true, timestamp: Date.now() });
+                    db.ref(`lojas/${LOJA_ID}/rastreio_ativo/${idPedidoAtual}`).update({ latMotoboy: latitude, lngMotoboy: longitude });
+
+                    if (markerMotoboy) map.removeLayer(markerMotoboy);
+                    markerMotoboy = L.marker([latitude, longitude]).addTo(map).bindPopup("SUA POSIÇÃO").openPopup();
+                }, null, {enableHighAccuracy: true});
+            } else {
+                alert("A rota já está em andamento. Clique em FINALIZAR ao concluir a entrega.");
+            }
+        }
+
+        // DELETAR UM PEDIDO FANTASMA ESPECÍFICO
+        async function deletarPedidoEspecífico(id) {
+            if (!confirm(`Deseja apagar o pedido #${id} do banco de dados?`)) return;
+
+            const updates = {};
+            updates[`lojas/${LOJA_ID}/rastreio_ativo/${id}`] = null;
+            updates[`lojas/${LOJA_ID}/producao_pendente/${id}`] = null;
+            if (idPedidoAtual === id) {
+                updates[`lojas/${LOJA_ID}/pedido_em_entrega`] = null;
+                idPedidoAtual = "NENHUM";
+            }
+            await db.ref().update(updates);
+        }
+
+        // APAGAR TODOS OS PEDIDOS FANTASMAS DE UMA VEZ
+        async function limparTodosFantasmas() {
+            if (!confirm("Deseja LIMPAR TODOS os pedidos salvos e zerar a fila?")) return;
+
+            const updates = {};
+            updates[`lojas/${LOJA_ID}/rastreio_ativo`] = null;
+            updates[`lojas/${LOJA_ID}/producao_pendente`] = null;
+            updates[`lojas/${LOJA_ID}/pedido_em_entrega`] = null;
+            
+            await db.ref().update(updates);
+            location.reload();
+        }
+
+        // FUNÇÃO DE FINALIZAR CORRIDA E LIMPAR O FIREBASE COMPLETAMENTE
+        async function finalizarCorridaCompleta() {
+            if (idPedidoAtual === "NENHUM") {
+                return alert("NENHUM PEDIDO ATIVO PARA FINALIZAR!");
+            }
+
+            if (!confirm(`Deseja realmente finalizar e limpar o pedido #${idPedidoAtual} do sistema?`)) {
+                return;
+            }
+
+            if(watchId) navigator.geolocation.clearWatch(watchId);
+            emRota = false;
+            
+            const pedidoId = idPedidoAtual;
+
+            const finalUpdates = {};
+            finalUpdates[`lojas/${LOJA_ID}/pedidos_concluidos/${pedidoId}`] = { 
+                id: pedidoId, 
+                status: "CONCLUIDO", 
+                finalizado_em: firebase.database.ServerValue.TIMESTAMP 
+            };
+            finalUpdates[`lojas/${LOJA_ID}/rastreio_ativo/${pedidoId}`] = null;
+            finalUpdates[`lojas/${LOJA_ID}/producao_pendente/${pedidoId}`] = null;
+            finalUpdates[`lojas/${LOJA_ID}/pedido_em_entrega`] = null;
+            finalUpdates[`lojas/${LOJA_ID}/motoboy_status`] = { online: false, timestamp: Date.now() };
+
+            await db.ref().update(finalUpdates);
+
+            alert("CORRIDA FINALIZADA E DADOS LIMPOS COM SUCESSO!");
+            location.reload();
+        }
+
+        async function buscarEnderecoManual() {
+            const input = document.getElementById('inputEndereco');
+            const end = input.value.trim();
+            if(!end) return alert("DIGITE UM ENDEREÇO!");
+
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(end + ", Manaus")}`);
+                const json = await res.json();
+                if (json && json.length > 0) {
+                    const lat = parseFloat(json[0].lat);
+                    const lng = parseFloat(json[0].lon);
+                    map.setView([lat, lng], 17);
+                    if(markerCliente) map.removeLayer(markerCliente);
+                    markerCliente = L.marker([lat, lng]).addTo(map).bindPopup(`DESTINO MANUAL: ${end}`).openPopup();
+                } else {
+                    alert("ENDEREÇO NÃO ENCONTRADO NO MAPA!");
+                }
+            } catch(e) {
+                alert("ERRO AO BUSCAR ENDEREÇO!");
+            }
+        }
+    </script>
+</body>
+</html>
