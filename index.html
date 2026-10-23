@@ -40,7 +40,6 @@
         .border-gold { border-color: var(--gold) !important; }
         .bg-gold { background-color: var(--gold) !important; }
         
-        /* Correção definitiva para o mapa ocupar a tela inteira sem tela verde */
         #map {
             position: absolute;
             inset: 0;
@@ -144,7 +143,7 @@
         });
 
         // LEITURA DIRETA DO PEDIDO ATIVO EM ENTREGA
-        db.ref(`lojas/${LOJA_ID}/pedido_em_entrega`).on('value', (snapshot) => {
+        db.ref(`lojas/${LOJA_ID}/pedido_em_entrega`).on('value', async (snapshot) => {
             const pedido = snapshot.val();
             if (pedido && pedido.id) {
                 idPedidoAtual = pedido.id;
@@ -156,10 +155,25 @@
                 document.getElementById('entCliente').innerText = nomeCliente.toUpperCase();
                 document.getElementById('entEndereco').innerText = enderecoCliente.toUpperCase();
 
-                if (pedido.latDestino && pedido.lngDestino) {
-                    map.setView([pedido.latDestino, pedido.lngDestino], 17);
+                let lat = pedido.latDestino;
+                let lng = pedido.lngDestino;
+
+                // Geocodificação de fallback caso venha sem coordenadas
+                if ((!lat || !lng) && enderecoCliente.length > 5) {
+                    try {
+                        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(enderecoCliente + ", Manaus")}`);
+                        const json = await res.json();
+                        if (json && json.length > 0) {
+                            lat = parseFloat(json[0].lat);
+                            lng = parseFloat(json[0].lon);
+                        }
+                    } catch(e) {}
+                }
+
+                if (lat && lng) {
+                    map.setView([lat, lng], 17);
                     if(markerCliente) map.removeLayer(markerCliente);
-                    markerCliente = L.marker([pedido.latDestino, pedido.lngDestino]).addTo(map).bindPopup(`DESTINO: ${nomeCliente}`).openPopup();
+                    markerCliente = L.marker([lat, lng]).addTo(map).bindPopup(`<b>DESTINO:</b> ${nomeCliente.toUpperCase()}<br>${enderecoCliente.toUpperCase()}`).openPopup();
                 }
             } else {
                 if (!emRota) {
@@ -189,7 +203,8 @@
                 const pendente = producaoPendentes[id];
                 const r = rAtivos[id];
 
-                let mesa = r?.cliente_nome || pendente?.mesa || "DELIVERY";
+                let cliente = r?.cliente_nome || pendente?.cliente_nome || pendente?.mesa || "DELIVERY";
+                let endereco = r?.endereco || pendente?.endereco || "SEM ENDEREÇO";
                 let total = pendente?.total || r?.total || 0;
                 let statusInfo = "AGUARDANDO";
                 let statusColor = "bg-red-500 text-white";
@@ -206,11 +221,12 @@
                     <div class="p-3 bg-[#0f172a] border border-zinc-800 rounded-lg hover:border-cyan-500 transition-all flex justify-between items-center">
                         <div class="flex-1 cursor-pointer" onclick="carregarPedidoProntoParaRota('${id}'); alternarPainelCorridas();">
                             <div class="flex justify-between items-center mb-1 pr-2">
-                                <span class="text-[10px] terminal-text text-zinc-500">${id}</span>
+                                <span class="text-[10px] terminal-text text-zinc-500">#${id}</span>
                                 <span class="text-[9px] font-black px-2 py-0.5 rounded uppercase ${statusColor}">${statusInfo}</span>
                             </div>
-                            <div class="text-xs font-black text-white uppercase truncate">${mesa}</div>
-                            <div class="text-[10px] text-zinc-400 mt-1">Total: R$ ${parseFloat(total).toFixed(2)}</div>
+                            <div class="text-xs font-black text-white uppercase truncate">${cliente}</div>
+                            <div class="text-[10px] text-cyan-400 uppercase truncate mt-0.5"><i class="fas fa-map-marker-alt"></i> ${endereco}</div>
+                            <div class="text-[10px] text-zinc-400 mt-1 font-bold">Total: R$ ${parseFloat(total).toFixed(2)}</div>
                         </div>
                         <button onclick="deletarPedidoEspecífico('${id}')" class="text-red-500 hover:text-red-400 p-2 text-sm" title="Apagar Pedido Fantasma">
                             <i class="fas fa-trash"></i>
@@ -220,16 +236,18 @@
             container.innerHTML = html;
         }
 
+        // CARREGAR E FIXAR PEDIDO NO NÓ DE ROTA E MAPA
         async function carregarPedidoProntoParaRota(id) {
             const r = rAtivos[id];
             const pendente = producaoPendentes[id];
 
-            const clienteNome = r?.cliente_nome || pendente?.mesa || "CLIENTE S/N";
-            const address = r?.endereco || "Manaus, Amazonas, Brasil";
-            let lat = r?.latDestino || -2.9903;
-            let lng = r?.lngDestino || -60.0673;
+            const clienteNome = r?.cliente_nome || pendente?.cliente_nome || pendente?.mesa || "CLIENTE S/N";
+            const address = r?.endereco || pendente?.endereco || "Manaus, Amazonas, Brasil";
+            let lat = r?.latDestino || pendente?.latDestino;
+            let lng = r?.lngDestino || pendente?.lngDestino;
 
-            if (!r?.latDestino && address.length > 5) {
+            // Busca coordenadas reais via Nominatim se não houver no banco
+            if ((!lat || !lng) && address.length > 5) {
                 try {
                     const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ", Manaus")}`);
                     const json = await res.json();
@@ -240,7 +258,21 @@
                 } catch (e) {}
             }
 
+            if (!lat || !lng) {
+                lat = -2.9903;
+                lng = -60.0673;
+            }
+
             idPedidoAtual = id;
+            
+            document.getElementById('displayPedidoID').innerText = id;
+            document.getElementById('entCliente').innerText = clienteNome.toUpperCase();
+            document.getElementById('entEndereco').innerText = address.toUpperCase();
+
+            map.setView([lat, lng], 17);
+            if(markerCliente) map.removeLayer(markerCliente);
+            markerCliente = L.marker([lat, lng]).addTo(map).bindPopup(`<b>DESTINO:</b> ${clienteNome.toUpperCase()}<br>${address.toUpperCase()}`).openPopup();
+
             await db.ref(`lojas/${LOJA_ID}/pedido_em_entrega`).set({ 
                 id, 
                 cliente: clienteNome, 
@@ -259,7 +291,7 @@
             });
         }
 
-        // --- SISTEMA DE RASTREIO E COMPARTILHAMENTO DE GPS DO MOTOBOY ---
+        // ALTERNAR TRANSMISSÃO CONTÍNUA DE GPS
         async function alternarRastreamento() {
             if(!emRota) {
                 if (idPedidoAtual === "NENHUM") return alert("SELECIONE UM PEDIDO ANTES DE INICIAR!");
@@ -275,12 +307,10 @@
 
                 db.ref(`lojas/${LOJA_ID}/rastreio_ativo/${idPedidoAtual}`).update({ status: "em_rota", na_pista: true });
 
-                // Inicia o envio contínuo da posição do GPS para o Firebase
                 watchId = navigator.geolocation.watchPosition(pos => {
                     if (!emRota || idPedidoAtual === "NENHUM") return;
                     const { latitude, longitude, heading } = pos.coords;
 
-                    // Salva a posição geral do motoboy e a telemetria do pedido ativo
                     db.ref(`lojas/${LOJA_ID}/motoboy_status`).set({ 
                         latitude, 
                         longitude, 
@@ -294,13 +324,11 @@
                         lngMotoboy: longitude 
                     });
 
-                    // Atualiza o marcador do próprio motoboy no mapa dele
                     if (markerMotoboy) map.removeLayer(markerMotoboy);
                     markerMotoboy = L.marker([latitude, longitude]).addTo(map).bindPopup("SUA LOCALIZAÇÃO ATUAL").openPopup();
-                    map.panTo([latitude, longitude]);
 
                 }, (err) => {
-                    alert("Erro ao obter GPS: " + err.message + ". Verifique se a localização está ativada no celular.");
+                    alert("Erro ao obter GPS: " + err.message + ". Ative a Localização do celular.");
                 }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
 
             } else {
@@ -377,7 +405,7 @@
                     const lng = parseFloat(json[0].lon);
                     map.setView([lat, lng], 17);
                     if(markerCliente) map.removeLayer(markerCliente);
-                    markerCliente = L.marker([lat, lng]).addTo(map).bindPopup(`DESTINO MANUAL: ${end}`).openPopup();
+                    markerCliente = L.marker([lat, lng]).addTo(map).bindPopup(`<b>DESTINO MANUAL:</b> ${end.toUpperCase()}`).openPopup();
                 } else {
                     alert("ENDEREÇO NÃO ENCONTRADO NO MAPA!");
                 }
