@@ -121,7 +121,25 @@
         const db = firebase.database();
         const LOJA_ID = 'LEOVARDIOS_burguer_2026';
 
-        // Inicializa o Leaflet com redimensionamento forçado para evitar tela verde
+        // Ícones customizados para diferenciar Cliente (Destino) do Motoboy
+        const iconeCliente = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
+        const iconeMotoboy = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
         const map = L.map('map', { zoomControl: true, attributionControl: false }).setView([-2.9903, -60.0673], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         setTimeout(() => { map.invalidateSize(); }, 300);
@@ -155,25 +173,27 @@
                 document.getElementById('entCliente').innerText = nomeCliente.toUpperCase();
                 document.getElementById('entEndereco').innerText = enderecoCliente.toUpperCase();
 
+                // Caso as coordenadas venham salvas ou precisem ser buscadas rigorosamente pelo nome do endereço
                 let lat = pedido.latDestino;
                 let lng = pedido.lngDestino;
 
-                // Geocodificação de fallback caso venha sem coordenadas
-                if ((!lat || !lng) && enderecoCliente.length > 5) {
-                    try {
-                        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(enderecoCliente + ", Manaus")}`);
-                        const json = await res.json();
-                        if (json && json.length > 0) {
-                            lat = parseFloat(json[0].lat);
-                            lng = parseFloat(json[0].lon);
-                        }
-                    } catch(e) {}
+                if ((!lat || !lng || lat === -2.9903) && enderecoCliente.length > 3) {
+                    const coordsObj = await geocodificarManausRigoroso(enderecoCliente);
+                    if (coordsObj) {
+                        lat = coordsObj.lat;
+                        lng = coordsObj.lng;
+                    }
                 }
 
                 if (lat && lng) {
-                    map.setView([lat, lng], 17);
-                    if(markerCliente) map.removeLayer(markerCliente);
-                    markerCliente = L.marker([lat, lng]).addTo(map).bindPopup(`<b>DESTINO:</b> ${nomeCliente.toUpperCase()}<br>${enderecoCliente.toUpperCase()}`).openPopup();
+                    if (markerCliente) map.removeLayer(markerCliente);
+                    markerCliente = L.marker([lat, lng], { icon: iconeCliente }).addTo(map)
+                        .bindPopup(`<b>DESTINO CLIENTE:</b><br>${nomeCliente}<br>${enderecoCliente}`).openPopup();
+                    
+                    // Centraliza no destino do cliente apenas se a rota ainda não tiver iniciado
+                    if (!emRota) {
+                        map.setView([lat, lng], 17);
+                    }
                 }
             } else {
                 if (!emRota) {
@@ -181,7 +201,7 @@
                     document.getElementById('displayPedidoID').innerText = "NENHUM";
                     document.getElementById('entCliente').innerText = "AGUARDANDO PEDIDO...";
                     document.getElementById('entEndereco').innerText = "---";
-                    if(markerCliente) { map.removeLayer(markerCliente); markerCliente = null; }
+                    if (markerCliente) { map.removeLayer(markerCliente); markerCliente = null; }
                 }
             }
         });
@@ -203,8 +223,7 @@
                 const pendente = producaoPendentes[id];
                 const r = rAtivos[id];
 
-                let cliente = r?.cliente_nome || pendente?.cliente_nome || pendente?.mesa || "DELIVERY";
-                let endereco = r?.endereco || pendente?.endereco || "SEM ENDEREÇO";
+                let mesa = r?.cliente_nome || pendente?.mesa || pendente?.cliente_nome || "DELIVERY";
                 let total = pendente?.total || r?.total || 0;
                 let statusInfo = "AGUARDANDO";
                 let statusColor = "bg-red-500 text-white";
@@ -221,12 +240,11 @@
                     <div class="p-3 bg-[#0f172a] border border-zinc-800 rounded-lg hover:border-cyan-500 transition-all flex justify-between items-center">
                         <div class="flex-1 cursor-pointer" onclick="carregarPedidoProntoParaRota('${id}'); alternarPainelCorridas();">
                             <div class="flex justify-between items-center mb-1 pr-2">
-                                <span class="text-[10px] terminal-text text-zinc-500">#${id}</span>
+                                <span class="text-[10px] terminal-text text-zinc-500">${id}</span>
                                 <span class="text-[9px] font-black px-2 py-0.5 rounded uppercase ${statusColor}">${statusInfo}</span>
                             </div>
-                            <div class="text-xs font-black text-white uppercase truncate">${cliente}</div>
-                            <div class="text-[10px] text-cyan-400 uppercase truncate mt-0.5"><i class="fas fa-map-marker-alt"></i> ${endereco}</div>
-                            <div class="text-[10px] text-zinc-400 mt-1 font-bold">Total: R$ ${parseFloat(total).toFixed(2)}</div>
+                            <div class="text-xs font-black text-white uppercase truncate">${mesa}</div>
+                            <div class="text-[10px] text-zinc-400 mt-1">Total: R$ ${parseFloat(total).toFixed(2)}</div>
                         </div>
                         <button onclick="deletarPedidoEspecífico('${id}')" class="text-red-500 hover:text-red-400 p-2 text-sm" title="Apagar Pedido Fantasma">
                             <i class="fas fa-trash"></i>
@@ -236,7 +254,6 @@
             container.innerHTML = html;
         }
 
-        // CARREGAR E FIXAR PEDIDO NO NÓ DE ROTA E MAPA
         async function carregarPedidoProntoParaRota(id) {
             const r = rAtivos[id];
             const pendente = producaoPendentes[id];
@@ -246,33 +263,18 @@
             let lat = r?.latDestino || pendente?.latDestino;
             let lng = r?.lngDestino || pendente?.lngDestino;
 
-            // Busca coordenadas reais via Nominatim se não houver no banco
-            if ((!lat || !lng) && address.length > 5) {
-                try {
-                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ", Manaus")}`);
-                    const json = await res.json();
-                    if (json && json.length > 0) {
-                        lat = parseFloat(json[0].lat);
-                        lng = parseFloat(json[0].lon);
-                    }
-                } catch (e) {}
-            }
-
             if (!lat || !lng) {
-                lat = -2.9903;
-                lng = -60.0673;
+                const coordsObj = await geocodificarManausRigoroso(address);
+                if (coordsObj) {
+                    lat = coordsObj.lat;
+                    lng = coordsObj.lng;
+                } else {
+                    lat = -2.9903;
+                    lng = -60.0673;
+                }
             }
 
             idPedidoAtual = id;
-            
-            document.getElementById('displayPedidoID').innerText = id;
-            document.getElementById('entCliente').innerText = clienteNome.toUpperCase();
-            document.getElementById('entEndereco').innerText = address.toUpperCase();
-
-            map.setView([lat, lng], 17);
-            if(markerCliente) map.removeLayer(markerCliente);
-            markerCliente = L.marker([lat, lng]).addTo(map).bindPopup(`<b>DESTINO:</b> ${clienteNome.toUpperCase()}<br>${address.toUpperCase()}`).openPopup();
-
             await db.ref(`lojas/${LOJA_ID}/pedido_em_entrega`).set({ 
                 id, 
                 cliente: clienteNome, 
@@ -291,9 +293,28 @@
             });
         }
 
-        // ALTERNAR TRANSMISSÃO CONTÍNUA DE GPS
+        // MOTOR RIGOROSO DE GEOCODIFICAÇÃO PARA MANAUS
+        async function geocodificarManausRigoroso(enderecoTexto) {
+            if (!enderecoTexto) return null;
+            try {
+                const query = encodeURIComponent(`${enderecoTexto}, Manaus, Amazonas, Brasil`);
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`);
+                const json = await res.json();
+                if (json && json.length > 0) {
+                    return {
+                        lat: parseFloat(json[0].lat),
+                        lng: parseFloat(json[0].lon)
+                    };
+                }
+            } catch(e) {
+                console.warn("Erro ao buscar coordenadas:", e);
+            }
+            return null;
+        }
+
+        // --- SISTEMA DE RASTREIO E COMPARTILHAMENTO DE GPS DO MOTOBOY ---
         async function alternarRastreamento() {
-            if(!emRota) {
+            if (!emRota) {
                 if (idPedidoAtual === "NENHUM") return alert("SELECIONE UM PEDIDO ANTES DE INICIAR!");
                 
                 if (!navigator.geolocation) {
@@ -311,6 +332,7 @@
                     if (!emRota || idPedidoAtual === "NENHUM") return;
                     const { latitude, longitude, heading } = pos.coords;
 
+                    // Salva a posição GPS do motoboy no nó central sem sobrescrever o destino do cliente
                     db.ref(`lojas/${LOJA_ID}/motoboy_status`).set({ 
                         latitude, 
                         longitude, 
@@ -324,11 +346,13 @@
                         lngMotoboy: longitude 
                     });
 
+                    // Atualiza o marcador do MOTOBOY (Pino Azul) sem remover o pino do CLIENTE (Pino Vermelho)
                     if (markerMotoboy) map.removeLayer(markerMotoboy);
-                    markerMotoboy = L.marker([latitude, longitude]).addTo(map).bindPopup("SUA LOCALIZAÇÃO ATUAL").openPopup();
+                    markerMotoboy = L.marker([latitude, longitude], { icon: iconeMotoboy }).addTo(map)
+                        .bindPopup("<b>SUA LOCALIZAÇÃO (MOTOBOY)</b>").openPopup();
 
                 }, (err) => {
-                    alert("Erro ao obter GPS: " + err.message + ". Ative a Localização do celular.");
+                    alert("Erro ao obter GPS: " + err.message + ". Verifique se a localização está ativada no celular.");
                 }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
 
             } else {
@@ -395,22 +419,16 @@
         async function buscarEnderecoManual() {
             const input = document.getElementById('inputEndereco');
             const end = input.value.trim();
-            if(!end) return alert("DIGITE UM ENDEREÇO!");
+            if (!end) return alert("DIGITE UM ENDEREÇO VÁLIDO!");
 
-            try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(end + ", Manaus")}`);
-                const json = await res.json();
-                if (json && json.length > 0) {
-                    const lat = parseFloat(json[0].lat);
-                    const lng = parseFloat(json[0].lon);
-                    map.setView([lat, lng], 17);
-                    if(markerCliente) map.removeLayer(markerCliente);
-                    markerCliente = L.marker([lat, lng]).addTo(map).bindPopup(`<b>DESTINO MANUAL:</b> ${end.toUpperCase()}`).openPopup();
-                } else {
-                    alert("ENDEREÇO NÃO ENCONTRADO NO MAPA!");
-                }
-            } catch(e) {
-                alert("ERRO AO BUSCAR ENDEREÇO!");
+            const coords = await geocodificarManausRigoroso(end);
+            if (coords) {
+                map.setView([coords.lat, coords.lng], 17);
+                if (markerCliente) map.removeLayer(markerCliente);
+                markerCliente = L.marker([coords.lat, coords.lng], { icon: iconeCliente }).addTo(map)
+                    .bindPopup(`<b>DESTINO MANUAL:</b><br>${end}`).openPopup();
+            } else {
+                alert("ENDEREÇO NÃO LOCALIZADO EM MANAUS! VERIFIQUE A RUA E O BAIRRO.");
             }
         }
     </script>
