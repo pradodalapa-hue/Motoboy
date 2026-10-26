@@ -58,15 +58,70 @@
 </head>
 <body class="relative text-gold">
 
+    <!-- MODAL DE LOGIN / CADASTRO DE MOTOBOY -->
+    <div id="modalAuth" class="fixed inset-0 bg-[#020617]/98 backdrop-blur-2xl z-50 flex items-center justify-center p-4">
+        <div class="bg-[#0f172a] border-2 border-cyan-500 rounded-2xl p-6 w-full max-w-md shadow-[0_0_30px_rgba(6,182,212,0.3)]">
+            <div class="text-center mb-6">
+                <i class="fas fa-motorcycle text-cyan-400 text-4xl mb-2"></i>
+                <h2 class="terminal-text text-cyan-400 text-lg font-black tracking-widest uppercase">MOTOBOY SUPREME JDP</h2>
+                <p class="text-zinc-400 text-xs mt-1">Acesse sua conta ou cadastre-se na frota</p>
+            </div>
+
+            <!-- ABAS LOGIN / REGISTRO -->
+            <div class="flex mb-4 border-b border-zinc-800">
+                <button id="abaLoginBtn" onclick="mudarAbaAuth('login')" class="flex-1 py-2 text-xs font-black terminal-text text-cyan-400 border-b-2 border-cyan-500 uppercase">Entrar</button>
+                <button id="abaCadastroBtn" onclick="mudarAbaAuth('cadastro')" class="flex-1 py-2 text-xs font-black terminal-text text-zinc-500 hover:text-white uppercase">Cadastrar</button>
+            </div>
+
+            <!-- FORMULÁRIO DE LOGIN -->
+            <form id="formLogin" onsubmit="realizarLogin(event)" class="space-y-3">
+                <div>
+                    <label class="text-[10px] terminal-text text-zinc-400 uppercase">Telefone / WhatsApp</label>
+                    <input type="tel" id="loginTelefone" required class="w-full p-3 bg-[#020617] border border-cyan-500/50 rounded-lg text-white font-bold text-xs focus:outline-none focus:border-cyan-400" placeholder="Ex: 92991234567">
+                </div>
+                <div>
+                    <label class="text-[10px] terminal-text text-zinc-400 uppercase">Senha</label>
+                    <input type="password" id="loginSenha" required class="w-full p-3 bg-[#020617] border border-cyan-500/50 rounded-lg text-white font-bold text-xs focus:outline-none focus:border-cyan-400" placeholder="••••••••">
+                </div>
+                <button type="submit" class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-black py-3 rounded-xl uppercase terminal-text text-xs shadow-lg transition-all mt-4">ACESSAR SISTEMA</button>
+            </form>
+
+            <!-- FORMULÁRIO DE CADASTRO -->
+            <form id="formCadastro" onsubmit="realizarCadastro(event)" class="space-y-3 hidden">
+                <div>
+                    <label class="text-[10px] terminal-text text-zinc-400 uppercase">Nome Completo do Motoboy</label>
+                    <input type="text" id="cadNome" required class="w-full p-3 bg-[#020617] border border-cyan-500/50 rounded-lg text-white font-bold text-xs uppercase focus:outline-none focus:border-cyan-400" placeholder="Ex: MARCOS SILVA">
+                </div>
+                <div>
+                    <label class="text-[10px] terminal-text text-zinc-400 uppercase">Telefone / WhatsApp</label>
+                    <input type="tel" id="cadTelefone" required class="w-full p-3 bg-[#020617] border border-cyan-500/50 rounded-lg text-white font-bold text-xs focus:outline-none focus:border-cyan-400" placeholder="Ex: 92991234567">
+                </div>
+                <div>
+                    <label class="text-[10px] terminal-text text-zinc-400 uppercase">Criar Senha</label>
+                    <input type="password" id="cadSenha" required class="w-full p-3 bg-[#020617] border border-cyan-500/50 rounded-lg text-white font-bold text-xs focus:outline-none focus:border-cyan-400" placeholder="••••••••">
+                </div>
+                <button type="submit" class="w-full bg-gold hover:bg-yellow-400 text-black font-black py-3 rounded-xl uppercase terminal-text text-xs shadow-lg transition-all mt-4">CRIAR CONTA NA FROTA</button>
+            </form>
+        </div>
+    </div>
+
     <!-- MAPA EM TELA CHEIA (Z-INDEX 0) -->
     <div id="map"></div>
 
-    <!-- BOTÃO FLUTUANTE SUPERIOR PARA ABRIR AS CORRIDAS -->
-    <div class="absolute top-4 left-4 z-20">
-        <button onclick="alternarPainelCorridas()" class="bg-[#020617]/90 border-2 border-cyan-500 hover:border-gold text-cyan-400 hover:text-gold px-4 py-3 rounded-xl shadow-[0_0_15px_rgba(6,182,212,0.4)] flex items-center gap-2 terminal-text text-xs font-black uppercase backdrop-blur-md transition-all">
+    <!-- BARRA SUPERIOR (CORRIDAS E IDENTIFICAÇÃO DO MOTOBOY) -->
+    <div class="absolute top-4 left-4 right-4 z-20 flex justify-between items-center pointer-events-none">
+        <button onclick="alternarPainelCorridas()" class="pointer-events-auto bg-[#020617]/90 border-2 border-cyan-500 hover:border-gold text-cyan-400 hover:text-gold px-4 py-3 rounded-xl shadow-[0_0_15px_rgba(6,182,212,0.4)] flex items-center gap-2 terminal-text text-xs font-black uppercase backdrop-blur-md transition-all">
             <i class="fas fa-list-ul text-sm"></i> CORRIDAS PRONTAS
             <span id="badgeQtd" class="bg-cyan-500 text-black px-2 py-0.5 rounded-full text-[10px] font-black ml-1">0</span>
         </button>
+
+        <div id="cardMotoboyLogado" class="pointer-events-auto bg-[#020617]/90 border border-cyan-500/50 px-3 py-2 rounded-xl backdrop-blur-md flex items-center gap-2 text-xs">
+            <div class="text-right">
+                <p id="labelNomeMotoboy" class="font-black text-white uppercase text-[11px] truncate max-w-[120px]">---</p>
+                <p class="text-[9px] text-green-400 terminal-text font-bold">● ONLINE</p>
+            </div>
+            <button onclick="deslogarMotoboy()" class="text-zinc-400 hover:text-red-400 p-1" title="Sair"><i class="fas fa-sign-out-alt"></i></button>
+        </div>
     </div>
 
     <!-- PAINEL LATERAL FLUTUANTE (GAVETA DE CORRIDAS) -->
@@ -88,14 +143,11 @@
 
     <!-- PAINEL DE CONTROLE SUPREMO (INFERIOR) -->
     <div class="absolute bottom-0 w-full bg-[#020617]/95 backdrop-blur-lg p-6 rounded-t-3xl border-t-2 border-cyan-500 z-10 box-border">
-        
-        <!-- ENTRADA DE ENDEREÇO MANUAL (EMERGÊNCIA) -->
         <div class="flex gap-2 mb-4">
             <input type="text" id="inputEndereco" class="flex-1 p-3 bg-[#0d0e12] border border-cyan-500 rounded-lg text-cyan-400 font-bold uppercase placeholder-cyan-800/40 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-xs" placeholder="[EMERGÊNCIA] DIGITE O ENDEREÇO DO CLIENTE...">
             <button onclick="buscarEnderecoManual()" class="bg-cyan-500 hover:bg-cyan-600 text-black px-4 py-2 rounded-lg font-black uppercase transition-all duration-200"><i class="fas fa-search"></i></button>
         </div>
 
-        <!-- INFOS DO PEDIDO E STATUS GPS -->
         <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-3">
             <div>
                 <div class="flex items-center gap-2">
@@ -108,7 +160,6 @@
             <div id="statusGPS" class="text-[10px] terminal-text font-black text-red-500 uppercase border border-red-500/30 px-3 py-1 rounded bg-red-950/20">🔴 OFFLINE</div>
         </div>
 
-        <!-- BOTÕES DE CONTROLE DE ROTA -->
         <div class="flex gap-2">
             <button id="btnRota" onclick="alternarRastreamento()" class="flex-1 bg-gold hover:bg-yellow-500 text-black font-black py-4 rounded-xl shadow-[0_0_15px_rgba(253,224,113,0.3)] uppercase terminal-text text-sm transition-all duration-200">INICIAR ROTA</button>
             <button onclick="finalizarCorridaCompleta()" class="bg-red-600 hover:bg-red-700 text-white font-black px-5 rounded-xl transition-all duration-200 shadow-lg" title="Finalizar Corrida"><i class="fas fa-check-double"></i> FINALIZAR</button>
@@ -119,24 +170,105 @@
         const firebaseConfig = { databaseURL: "https://dony-burguers-default-rtdb.firebaseio.com" };
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        const LOJA_ID = 'LEOVARDIOS_burguer_2026';
+        const LOJA_ID = 'LEOCARDIOS_burguer_2026';
+
+        let motoboySessao = null;
+
+        // VERIFICA SESSÃO AO INICIAR
+        window.addEventListener('DOMContentLoaded', () => {
+            const salvo = localStorage.getItem('motoboy_sessao_jdp');
+            if (salvo) {
+                motoboySessao = JSON.parse(salvo);
+                document.getElementById('modalAuth').classList.add('hidden');
+                document.getElementById('labelNomeMotoboy').innerText = motoboySessao.nome;
+            }
+        });
+
+        function mudarAbaAuth(aba) {
+            if (aba === 'login') {
+                document.getElementById('formLogin').classList.remove('hidden');
+                document.getElementById('formCadastro').classList.add('hidden');
+                document.getElementById('abaLoginBtn').className = "flex-1 py-2 text-xs font-black terminal-text text-cyan-400 border-b-2 border-cyan-500 uppercase";
+                document.getElementById('abaCadastroBtn').className = "flex-1 py-2 text-xs font-black terminal-text text-zinc-500 hover:text-white uppercase";
+            } else {
+                document.getElementById('formCadastro').classList.remove('hidden');
+                document.getElementById('formLogin').classList.add('hidden');
+                document.getElementById('abaCadastroBtn').className = "flex-1 py-2 text-xs font-black terminal-text text-gold border-b-2 border-gold uppercase";
+                document.getElementById('abaLoginBtn').className = "flex-1 py-2 text-xs font-black terminal-text text-zinc-500 hover:text-white uppercase";
+            }
+        }
+
+        async function realizarCadastro(e) {
+            e.preventDefault();
+            const nome = document.getElementById('cadNome').value.trim().toUpperCase();
+            const telefone = document.getElementById('cadTelefone').value.trim().replace(/\D/g, '');
+            const senha = document.getElementById('cadSenha').value.trim();
+
+            if (!nome || !telefone || !senha) return alert("Preencha todos os campos!");
+
+            const motoId = "MOTO_" + telefone;
+            const refMoto = db.ref(`lojas/${LOJA_ID}/equipe_motoboys/${motoId}`);
+
+            const snap = await refMoto.once('value');
+            if (snap.exists()) {
+                alert("Este telefone já está cadastrado!");
+                return;
+            }
+
+            const dadosMoto = { id: motoId, nome, telefone, senha, status: "ONLINE", criadoEm: Date.now() };
+            await refMoto.set(dadosMoto);
+
+            motoboySessao = dadosMoto;
+            localStorage.setItem('motoboy_sessao_jdp', JSON.stringify(dadosMoto));
+            
+            document.getElementById('modalAuth').classList.add('hidden');
+            document.getElementById('labelNomeMotoboy').innerText = nome;
+            alert("Cadastro realizado com sucesso!");
+        }
+
+        async function realizarLogin(e) {
+            e.preventDefault();
+            const telefone = document.getElementById('loginTelefone').value.trim().replace(/\D/g, '');
+            const senha = document.getElementById('loginSenha').value.trim();
+
+            const motoId = "MOTO_" + telefone;
+            const refMoto = db.ref(`lojas/${LOJA_ID}/equipe_motoboys/${motoId}`);
+
+            const snap = await refMoto.once('value');
+            if (!snap.exists()) {
+                alert("Motoboy não encontrado com este telefone!");
+                return;
+            }
+
+            const dados = snap.val();
+            if (dados.senha !== senha) {
+                alert("Senha incorreta!");
+                return;
+            }
+
+            motoboySessao = dados;
+            localStorage.setItem('motoboy_sessao_jdp', JSON.stringify(dados));
+
+            document.getElementById('modalAuth').classList.add('hidden');
+            document.getElementById('labelNomeMotoboy').innerText = dados.nome;
+        }
+
+        function deslogarMotoboy() {
+            if (!confirm("Deseja encerrar a sessão?")) return;
+            localStorage.removeItem('motoboy_sessao_jdp');
+            location.reload();
+        }
 
         const iconeCliente = L.icon({
             iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
             shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34],
-            shadowSize: [41, 41]
+            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
         });
 
         const iconeMotoboy = L.icon({
             iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
             shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34],
-            shadowSize: [41, 41]
+            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
         });
 
         const map = L.map('map', { zoomControl: true, attributionControl: false }).setView([-2.9903, -60.0673], 15);
@@ -148,30 +280,22 @@
         let pedidosProntos = {}, pedidosCancelados = {};
 
         function alternarPainelCorridas() {
-            const painel = document.getElementById('painelLateral');
-            painel.classList.toggle('-translate-x-full');
+            document.getElementById('painelLateral').classList.toggle('-translate-x-full');
         }
 
-        // ==========================================
-        // ESCUTA ISOLADA E RESTRITA: SOMENTE pedido_pronto_entrega
-        // ==========================================
+        // ESCUTA ISOLADA DO NÓ DEDICADO DE COZINHA
         db.ref(`lojas/${LOJA_ID}`).on('value', snap => {
             const data = snap.val() || {};
             const dadosProntosExclusivos = data.pedido_pronto_entrega || {};
             pedidosCancelados = data.pedidos_cancelados || {};
             
-            // FILTRA APENAS O QUE ESTÁ NO NÓ EXCLUSIVO DA COZINHA E NÃO ESTÁ CANCELADO
             pedidosProntos = {};
             Object.keys(dadosProntosExclusivos).forEach(id => {
                 const p = dadosProntosExclusivos[id];
                 const estaCancelado = pedidosCancelados[id] || (p && p.status === "cancelado");
-
-                if (!estaCancelado && p) {
-                    pedidosProntos[id] = p;
-                }
+                if (!estaCancelado && p) pedidosProntos[id] = p;
             });
 
-            // SE O PEDIDO ATUALMENTE SELECIONADO FOR CANCELADO, LIMPA IMEDIATAMENTE
             if (idPedidoAtual !== "NENHUM" && pedidosCancelados[idPedidoAtual]) {
                 alert(`⚠️ O pedido #${idPedidoAtual} foi cancelado! Removendo da tela.`);
                 if (watchId) navigator.geolocation.clearWatch(watchId);
@@ -204,20 +328,14 @@
 
                 if ((!lat || !lng || lat === -2.9903) && enderecoCliente.length > 3) {
                     const coordsObj = await geocodificarManausRigoroso(enderecoCliente);
-                    if (coordsObj) {
-                        lat = coordsObj.lat;
-                        lng = coordsObj.lng;
-                    }
+                    if (coordsObj) { lat = coordsObj.lat; lng = coordsObj.lng; }
                 }
 
                 if (lat && lng) {
                     if (markerCliente) map.removeLayer(markerCliente);
                     markerCliente = L.marker([lat, lng], { icon: iconeCliente }).addTo(map)
                         .bindPopup(`<b>DESTINO CLIENTE:</b><br>${nomeCliente}<br>${enderecoCliente}`).openPopup();
-                    
-                    if (!emRota) {
-                        map.setView([lat, lng], 17);
-                    }
+                    if (!emRota) map.setView([lat, lng], 17);
                 }
             } else {
                 if (!emRota) {
@@ -233,7 +351,7 @@
         function processarFilaEVisualizacaoGeral() {
             const container = document.getElementById('listaFilaGeral');
             const badgeQtd = document.getElementById('badgeQtd');
-            const todosIds = Object.keys(pedidosProntos); // APENAS OS QUE VIERAM DA ESTEIRA DA COZINHA
+            const todosIds = Object.keys(pedidosProntos);
 
             badgeQtd.innerText = todosIds.length;
 
@@ -245,18 +363,15 @@
             let html = "";
             todosIds.forEach(id => {
                 const pronto = pedidosProntos[id];
-
                 let mesa = pronto?.cliente_nome || pronto?.mesa || "DELIVERY";
                 let total = pronto?.total || 0;
-                let statusInfo = "PRONTO PARA COLETA 📦";
-                let statusColor = "bg-cyan-500 text-black";
 
                 html += `
                     <div class="p-3 bg-[#0f172a] border border-zinc-800 rounded-lg hover:border-cyan-500 transition-all flex justify-between items-center">
                         <div class="flex-1 cursor-pointer" onclick="carregarPedidoProntoParaRota('${id}'); alternarPainelCorridas();">
                             <div class="flex justify-between items-center mb-1 pr-2">
                                 <span class="text-[10px] terminal-text text-zinc-500">${id}</span>
-                                <span class="text-[9px] font-black px-2 py-0.5 rounded uppercase ${statusColor}">${statusInfo}</span>
+                                <span class="text-[9px] font-black px-2 py-0.5 rounded uppercase bg-cyan-500 text-black">PRONTO PARA COLETA 📦</span>
                             </div>
                             <div class="text-xs font-black text-white uppercase truncate">${mesa}</div>
                             <div class="text-[10px] text-zinc-400 mt-1">Total: R$ ${parseFloat(total).toFixed(2)}</div>
@@ -270,10 +385,13 @@
         }
 
         async function carregarPedidoProntoParaRota(id) {
-            if (pedidosCancelados[id]) {
-                alert("Este pedido foi cancelado e não pode ser carregado!");
+            if (!motoboySessao) {
+                alert("Faça login antes de carregar um pedido!");
+                document.getElementById('modalAuth').classList.remove('hidden');
                 return;
             }
+
+            if (pedidosCancelados[id]) return alert("Este pedido foi cancelado!");
 
             const pronto = pedidosProntos[id];
             if (!pronto) return;
@@ -285,31 +403,35 @@
 
             if (!lat || !lng) {
                 const coordsObj = await geocodificarManausRigoroso(address);
-                if (coordsObj) {
-                    lat = coordsObj.lat;
-                    lng = coordsObj.lng;
-                } else {
-                    lat = -2.9903;
-                    lng = -60.0673;
-                }
+                if (coordsObj) { lat = coordsObj.lat; lng = coordsObj.lng; }
+                else { lat = -2.9903; lng = -60.0673; }
             }
 
             idPedidoAtual = id;
-            await db.ref(`lojas/${LOJA_ID}/pedido_em_entrega`).set({ 
-                id, 
-                cliente: clienteNome, 
-                endereco: address, 
-                latDestino: lat, 
-                lngDestino: lng, 
-                timestamp: Date.now() 
-            });
+
+            // CARIMBA O MOTOBOY LOGADO NA CORRIDA E NO RASTREIO ATIVO
+            const dadosCorridaComMotoboy = {
+                id,
+                cliente: clienteNome,
+                endereco: address,
+                latDestino: lat,
+                lngDestino: lng,
+                motoboy_id: motoboySessao.id,
+                motoboy_nome: motoboySessao.nome,
+                motoboy_telefone: motoboySessao.telefone,
+                timestamp: Date.now()
+            };
+
+            await db.ref(`lojas/${LOJA_ID}/pedido_em_entrega`).set(dadosCorridaComMotoboy);
 
             await db.ref(`lojas/${LOJA_ID}/rastreio_ativo/${id}`).update({
                 cliente_nome: clienteNome,
                 endereco: address,
                 latDestino: lat,
                 lngDestino: lng,
-                status: "PRONTO_PARA_ENTREGA"
+                motoboy_nome: motoboySessao.nome,
+                motoboy_telefone: motoboySessao.telefone,
+                status: "SAIU_PARA_ENTREGA"
             });
         }
 
@@ -319,116 +441,88 @@
                 const query = encodeURIComponent(`${enderecoTexto}, Manaus, Amazonas, Brasil`);
                 const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`);
                 const json = await res.json();
-                if (json && json.length > 0) {
-                    return {
-                        lat: parseFloat(json[0].lat),
-                        lng: parseFloat(json[0].lon)
-                    };
-                }
-            } catch(e) {
-                console.warn("Erro ao buscar coordenadas:", e);
-            }
+                if (json && json.length > 0) return { lat: parseFloat(json[0].lat), lng: parseFloat(json[0].lon) };
+            } catch(e) {}
             return null;
         }
 
         async function alternarRastreamento() {
             if (!emRota) {
                 if (idPedidoAtual === "NENHUM") return alert("SELECIONE UM PEDIDO LIBERADO ANTES DE INICIAR!");
-                if (pedidosCancelados[idPedidoAtual]) return alert("Este pedido foi cancelado!");
-                
-                if (!navigator.geolocation) {
-                    return alert("Seu navegador ou dispositivo não suporta Geolocalização GPS!");
-                }
+                if (!navigator.geolocation) return alert("Dispositivo sem suporte a GPS!");
 
                 emRota = true;
                 document.getElementById('btnRota').innerText = "EM ROTA...";
                 document.getElementById('statusGPS').innerText = "🟢 TRANSMITINDO";
                 document.getElementById('statusGPS').className = "text-[10px] terminal-text font-black text-green-400 uppercase border border-green-500/30 px-3 py-1 rounded bg-green-950/20";
 
-                db.ref(`lojas/${LOJA_ID}/rastreio_ativo/${idPedidoAtual}`).update({ status: "em_rota", na_pista: true });
+                db.ref(`lojas/${LOJA_ID}/rastreio_ativo/${idPedidoAtual}`).update({
+                    status: "em_rota",
+                    na_pista: true,
+                    motoboy_nome: motoboySessao ? motoboySessao.nome : "MOTOBOY"
+                });
 
                 watchId = navigator.geolocation.watchPosition(pos => {
-                    if (!emRota || idPedidoAtual === "NENHUM" || pedidosCancelados[idPedidoAtual]) return;
+                    if (!emRota || idPedidoAtual === "NENHUM") return;
                     const { latitude, longitude, heading } = pos.coords;
 
                     db.ref(`lojas/${LOJA_ID}/motoboy_status`).set({ 
-                        latitude, 
-                        longitude, 
-                        bearing: heading || 0, 
-                        online: true, 
+                        latitude, longitude, bearing: heading || 0, online: true, 
+                        motoboy_nome: motoboySessao ? motoboySessao.nome : "MOTOBOY",
                         timestamp: Date.now() 
                     });
 
-                    db.ref(`lojas/${LOJA_ID}/rastreio_ativo/${idPedidoAtual}`).update({ 
-                        latMotoboy: latitude, 
-                        lngMotoboy: longitude 
-                    });
+                    db.ref(`lojas/${LOJA_ID}/rastreio_ativo/${idPedidoAtual}`).update({ latMotoboy: latitude, lngMotoboy: longitude });
 
                     if (markerMotoboy) map.removeLayer(markerMotoboy);
                     markerMotoboy = L.marker([latitude, longitude], { icon: iconeMotoboy }).addTo(map)
-                        .bindPopup("<b>SUA LOCALIZAÇÃO (MOTOBOY)</b>").openPopup();
+                        .bindPopup(`<b>${motoboySessao ? motoboySessao.nome : 'MOTOBOY'}</b>`).openPopup();
 
-                }, (err) => {
-                    alert("Erro ao obter GPS: " + err.message);
-                }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
-
+                }, (err) => { alert("Erro GPS: " + err.message); }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
             } else {
-                alert("A rota já está em andamento. Clique em FINALIZAR ao concluir a entrega.");
+                alert("A rota já está em andamento.");
             }
         }
 
         async function deletarPedidoEspecífico(id) {
             if (!confirm(`Deseja apagar o pedido #${id}?`)) return;
-
             const updates = {};
             updates[`lojas/${LOJA_ID}/pedido_pronto_entrega/${id}`] = null;
             updates[`lojas/${LOJA_ID}/rastreio_ativo/${id}`] = null;
-            if (idPedidoAtual === id) {
-                updates[`lojas/${LOJA_ID}/pedido_em_entrega`] = null;
-                idPedidoAtual = "NENHUM";
-            }
+            if (idPedidoAtual === id) { updates[`lojas/${LOJA_ID}/pedido_em_entrega`] = null; idPedidoAtual = "NENHUM"; }
             await db.ref().update(updates);
         }
 
         async function limparTodosFantasmas() {
             if (!confirm("Deseja LIMPAR os pedidos da tela do motoboy?")) return;
-
             const updates = {};
             updates[`lojas/${LOJA_ID}/pedido_pronto_entrega`] = null;
             updates[`lojas/${LOJA_ID}/rastreio_ativo`] = null;
             updates[`lojas/${LOJA_ID}/pedido_em_entrega`] = null;
-            
             await db.ref().update(updates);
             location.reload();
         }
 
         async function finalizarCorridaCompleta() {
-            if (idPedidoAtual === "NENHUM") {
-                return alert("NENHUM PEDIDO ATIVO PARA FINALIZAR!");
-            }
-
-            if (!confirm(`Deseja realmente finalizar e limpar o pedido #${idPedidoAtual} do sistema?`)) {
-                return;
-            }
+            if (idPedidoAtual === "NENHUM") return alert("NENHUM PEDIDO ATIVO PARA FINALIZAR!");
+            if (!confirm(`Deseja realmente finalizar o pedido #${idPedidoAtual}?`)) return;
 
             if(watchId) navigator.geolocation.clearWatch(watchId);
             emRota = false;
             
             const pedidoId = idPedidoAtual;
-
             const finalUpdates = {};
             finalUpdates[`lojas/${LOJA_ID}/pedidos_concluidos/${pedidoId}`] = { 
                 id: pedidoId, 
                 status: "CONCLUIDO", 
+                motoboy_nome: motoboySessao ? motoboySessao.nome : "MOTOBOY",
                 finalizado_em: firebase.database.ServerValue.TIMESTAMP 
             };
             finalUpdates[`lojas/${LOJA_ID}/pedido_pronto_entrega/${pedidoId}`] = null;
             finalUpdates[`lojas/${LOJA_ID}/rastreio_ativo/${pedidoId}`] = null;
             finalUpdates[`lojas/${LOJA_ID}/pedido_em_entrega`] = null;
-            finalUpdates[`lojas/${LOJA_ID}/motoboy_status`] = { online: false, timestamp: Date.now() };
 
             await db.ref().update(finalUpdates);
-
             alert("CORRIDA FINALIZADA COM SUCESSO!");
             location.reload();
         }
