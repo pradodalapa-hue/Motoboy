@@ -145,33 +145,31 @@
 
         let markerCliente = null, markerMotoboy = null, watchId = null, emRota = false;
         let idPedidoAtual = "NENHUM";
-        let producaoPendentes = {}, rAtivos = {}, pedidosCancelados = {};
+        let pedidosProntos = {}, rAtivos = {}, pedidosCancelados = {};
 
         function alternarPainelCorridas() {
             const painel = document.getElementById('painelLateral');
             painel.classList.toggle('-translate-x-full');
         }
 
-        // ESCUTA DO BANCO DE DADOS: FILTRANDO COZINHA E BLOQUEANDO ITENS CANCELADOS
+        // ESCUTA EXCLUSIVA DO NOVO NÓ: pedido_pronto_entrega (e cancelamentos gerais)
         db.ref(`lojas/${LOJA_ID}`).on('value', snap => {
             const data = snap.val() || {};
-            const dadosBrutosPendentes = data.producao_pendente || {};
+            const dadosBrutosProntos = data.pedido_pronto_entrega || {};
             pedidosCancelados = data.pedidos_cancelados || {};
             
-            // TRAVA DE SEGURANÇA 1: Só aceita o que a cozinha marcou como PRONTO
-            // TRAVA DE SEGURANÇA 2: Exclui imediatamente se estiver em pedidos_cancelados
-            producaoPendentes = {};
-            Object.keys(dadosBrutosPendentes).forEach(id => {
-                const p = dadosBrutosPendentes[id];
-                const statusCozinha = (p.status || "").toUpperCase();
+            // FILTRA APENAS O QUE ESTÁ NO NÓ DE PEDIDO PRONTO E NÃO ESTÁ CANCELADO
+            pedidosProntos = {};
+            Object.keys(dadosBrutosProntos).forEach(id => {
+                const p = dadosBrutosProntos[id];
                 const estaCancelado = pedidosCancelados[id] || (p.status === "cancelado");
 
-                if (statusCozinha === "PRONTO" && !estaCancelado) {
-                    producaoPendentes[id] = p;
+                if (!estaCancelado) {
+                    pedidosProntos[id] = p;
                 }
             });
 
-            // Filtra também os rastreios ativos para ignorar se foram cancelados
+            // Filtra rastreios ativos
             rAtivos = {};
             if (data.rastreio_ativo) {
                 Object.keys(data.rastreio_ativo).forEach(id => {
@@ -181,7 +179,7 @@
                 });
             }
 
-            // SE O PEDIDO ATUALMENTE SELECIONADO FOR CANCELADO, LIMPA TUDO IMEDIATAMENTE DA TELA DO MOTOBOY
+            // SE O PEDIDO ATUALMENTE SELECIONADO FOR CANCELADO, LIMPA IMEDIATAMENTE
             if (idPedidoAtual !== "NENHUM" && pedidosCancelados[idPedidoAtual]) {
                 alert(`⚠️ O pedido #${idPedidoAtual} foi cancelado! Removendo da tela.`);
                 if (watchId) navigator.geolocation.clearWatch(watchId);
@@ -203,7 +201,7 @@
                 idPedidoAtual = pedido.id;
                 document.getElementById('displayPedidoID').innerText = idPedidoAtual;
                 
-                const nomeCliente = pedido.cliente || "CLIENTE S/N";
+                const nomeCliente = pedido.cliente || pedido.cliente_nome || "CLIENTE S/N";
                 const enderecoCliente = pedido.endereco || "ENDEREÇO NÃO LOCALIZADO";
 
                 document.getElementById('entCliente').innerText = nomeCliente.toUpperCase();
@@ -243,7 +241,7 @@
         function processarFilaEVisualizacaoGeral() {
             const container = document.getElementById('listaFilaGeral');
             const badgeQtd = document.getElementById('badgeQtd');
-            const todosIds = new Set([...Object.keys(producaoPendentes), ...Object.keys(rAtivos)]);
+            const todosIds = new Set([...Object.keys(pedidosProntos), ...Object.keys(rAtivos)]);
 
             badgeQtd.innerText = todosIds.size;
 
@@ -254,11 +252,11 @@
 
             let html = "";
             todosIds.forEach(id => {
-                const pendente = producaoPendentes[id];
+                const pronto = pedidosProntos[id];
                 const r = rAtivos[id];
 
-                let mesa = r?.cliente_nome || pendente?.mesa || pendente?.cliente_nome || "DELIVERY";
-                let total = pendente?.total || r?.total || 0;
+                let mesa = r?.cliente_nome || pronto?.cliente_nome || pronto?.mesa || "DELIVERY";
+                let total = pronto?.total || r?.total || 0;
                 let statusInfo = "PRONTO PARA COLETA 📦";
                 let statusColor = "bg-cyan-500 text-black";
 
@@ -292,12 +290,12 @@
             }
 
             const r = rAtivos[id];
-            const pendente = producaoPendentes[id];
+            const pronto = pedidosProntos[id];
 
-            const clienteNome = r?.cliente_nome || pendente?.cliente_nome || pendente?.mesa || "CLIENTE S/N";
-            const address = r?.endereco || pendente?.endereco || "Manaus, Amazonas, Brasil";
-            let lat = r?.latDestino || pendente?.latDestino;
-            let lng = r?.lngDestino || pendente?.lngDestino;
+            const clienteNome = r?.cliente_nome || pronto?.cliente_nome || pronto?.mesa || "CLIENTE S/N";
+            const address = r?.endereco || pronto?.endereco || "Manaus, Amazonas, Brasil";
+            let lat = r?.latDestino || pronto?.latDestino;
+            let lng = r?.lngDestino || pronto?.lngDestino;
 
             if (!lat || !lng) {
                 const coordsObj = await geocodificarManausRigoroso(address);
@@ -437,7 +435,7 @@
                 finalizado_em: firebase.database.ServerValue.TIMESTAMP 
             };
             finalUpdates[`lojas/${LOJA_ID}/rastreio_ativo/${pedidoId}`] = null;
-            finalUpdates[`lojas/${LOJA_ID}/producao_pendente/${pedidoId}`] = null;
+            finalUpdates[`lojas/${LOJA_ID}/pedido_pronto_entrega/${pedidoId}`] = null;
             finalUpdates[`lojas/${LOJA_ID}/pedido_em_entrega`] = null;
             finalUpdates[`lojas/${LOJA_ID}/motoboy_status`] = { online: false, timestamp: Date.now() };
 
