@@ -67,13 +67,11 @@
                 <p class="text-zinc-400 text-xs mt-1">Acesse sua conta ou cadastre-se na frota</p>
             </div>
 
-            <!-- ABAS LOGIN / REGISTRO -->
             <div class="flex mb-4 border-b border-zinc-800">
                 <button id="abaLoginBtn" onclick="mudarAbaAuth('login')" class="flex-1 py-2 text-xs font-black terminal-text text-cyan-400 border-b-2 border-cyan-500 uppercase">Entrar</button>
                 <button id="abaCadastroBtn" onclick="mudarAbaAuth('cadastro')" class="flex-1 py-2 text-xs font-black terminal-text text-zinc-500 hover:text-white uppercase">Cadastrar</button>
             </div>
 
-            <!-- FORMULÁRIO DE LOGIN -->
             <form id="formLogin" onsubmit="realizarLogin(event)" class="space-y-3">
                 <div>
                     <label class="text-[10px] terminal-text text-zinc-400 uppercase">Telefone / WhatsApp</label>
@@ -86,7 +84,6 @@
                 <button type="submit" class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-black py-3 rounded-xl uppercase terminal-text text-xs shadow-lg transition-all mt-4">ACESSAR SISTEMA</button>
             </form>
 
-            <!-- FORMULÁRIO DE CADASTRO -->
             <form id="formCadastro" onsubmit="realizarCadastro(event)" class="space-y-3 hidden">
                 <div>
                     <label class="text-[10px] terminal-text text-zinc-400 uppercase">Nome Completo do Motoboy</label>
@@ -105,10 +102,10 @@
         </div>
     </div>
 
-    <!-- MAPA EM TELA CHEIA (Z-INDEX 0) -->
+    <!-- MAPA EM TELA CHEIA -->
     <div id="map"></div>
 
-    <!-- BARRA SUPERIOR (CORRIDAS E IDENTIFICAÇÃO DO MOTOBOY) -->
+    <!-- BARRA SUPERIOR -->
     <div class="absolute top-4 left-4 right-4 z-20 flex justify-between items-center pointer-events-none">
         <button onclick="alternarPainelCorridas()" class="pointer-events-auto bg-[#020617]/90 border-2 border-cyan-500 hover:border-gold text-cyan-400 hover:text-gold px-4 py-3 rounded-xl shadow-[0_0_15px_rgba(6,182,212,0.4)] flex items-center gap-2 terminal-text text-xs font-black uppercase backdrop-blur-md transition-all">
             <i class="fas fa-list-ul text-sm"></i> CORRIDAS PRONTAS
@@ -124,11 +121,11 @@
         </div>
     </div>
 
-    <!-- PAINEL LATERAL FLUTUANTE (GAVETA DE CORRIDAS) -->
+    <!-- PAINEL LATERAL FLUTUANTE (GAVETA DA PORTA A) -->
     <div id="painelLateral" class="absolute top-0 left-0 h-full w-full md:w-[380px] bg-[#020617]/95 backdrop-blur-xl border-r-2 border-cyan-500 flex flex-col z-30 transform -translate-x-full shadow-2xl">
         <div class="p-4 border-b border-zinc-800 bg-[#070d19] flex justify-between items-center">
             <h2 class="terminal-text text-cyan-400 font-black text-xs tracking-widest flex items-center gap-2">
-                <i class="fas fa-satellite-dish animate-pulse"></i> LIBERADOS PELA COZINHA
+                <i class="fas fa-satellite-dish animate-pulse"></i> LIBERADOS PELA COZINHA (PORTA A)
             </h2>
             <div class="flex items-center gap-2">
                 <button onclick="limparTodosFantasmas()" class="text-red-500 hover:text-red-400 text-xs font-black px-2 py-1 border border-red-500/40 rounded bg-red-950/30 uppercase" title="Apagar todos"><i class="fas fa-trash-alt"></i> LIMPAR</button>
@@ -137,11 +134,11 @@
         </div>
         
         <div class="flex-1 overflow-y-auto p-3 space-y-3" id="listaFilaGeral">
-            <p class="text-center text-zinc-600 text-xs py-10">Aguardando a cozinha liberar pedidos...</p>
+            <p class="text-center text-zinc-600 text-xs py-10">Aguardando liberação da cozinha...</p>
         </div>
     </div>
 
-    <!-- PAINEL DE CONTROLE SUPREMO (INFERIOR) -->
+    <!-- PAINEL DE CONTROLE SUPREMO INFERIOR -->
     <div class="absolute bottom-0 w-full bg-[#020617]/95 backdrop-blur-lg p-6 rounded-t-3xl border-t-2 border-cyan-500 z-10 box-border">
         <div class="flex gap-2 mb-4">
             <input type="text" id="inputEndereco" class="flex-1 p-3 bg-[#0d0e12] border border-cyan-500 rounded-lg text-cyan-400 font-bold uppercase placeholder-cyan-800/40 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-xs" placeholder="[EMERGÊNCIA] DIGITE O ENDEREÇO DO CLIENTE...">
@@ -170,7 +167,7 @@
         const firebaseConfig = { databaseURL: "https://dony-burguers-default-rtdb.firebaseio.com" };
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        const LOJA_ID = 'LEOVARDIOS_burguer_2026'; // ID EXATO VINDO DO MAPA
+        const LOJA_ID = 'LEOVARDIOS_burguer_2026';
 
         let motoboySessao = null;
 
@@ -283,27 +280,40 @@
         }
 
         // =========================================================================
-        // LÓGICA IDÊNTICA À DO MAPA: ESCUTA O NÓ GLOBAL E REMOVE SE ESTIVER CANCELADO
+        // 🛡️ O VIGIA DE PORTARIA BLINDADO COM EXCLUSÃO AUTOMÁTICA NO FIREBASE
         // =========================================================================
         db.ref(`lojas/${LOJA_ID}`).on('value', snap => {
             const data = snap.val() || {};
-            const dadosProntosExclusivos = data.pedido_pronto_entrega || {};
-            pedidosCancelados = data.pedidos_cancelados || {};
             
+            const portaAPedidosProntos = data.pedido_pronto_entrega || {};
+            const relatorioCanceladosGerais = data.pedidos_cancelados || {};
+            const relatorioProducaoCancelada = data.producao_cancelada || {};
+
             pedidosProntos = {};
-            Object.keys(dadosProntosExclusivos).forEach(id => {
-                const p = dadosProntosExclusivos[id];
+            
+            Object.keys(portaAPedidosProntos).forEach(id => {
+                const p = portaAPedidosProntos[id];
+                const limpoId = id.replace("#", "").trim();
                 
-                // MESMA VERIFICAÇÃO RIGOROSA DO MAPA PARA DETECTAR CANCELAMENTO
-                const estaCancelado = dadosCancelado || pedidosCancelados[id] || (p && (p.status === "cancelado" || p.status === "CANCELADO"));
+                const estaCancelado = 
+                    relatorioCanceladosGerais[limpoId] !== undefined || 
+                    relatorioCanceladosGerais[id] !== undefined || 
+                    relatorioCanceladosGerais["#" + limpoId] !== undefined ||
+                    relatorioProducaoCancelada[limpoId] !== undefined ||
+                    relatorioProducaoCancelada[id] !== undefined ||
+                    (p && ((p.status || "").toUpperCase().includes("CANCEL")));
 
                 if (!estaCancelado && p) {
                     pedidosProntos[id] = p;
+                } else if (estaCancelado) {
+                    // DESTRUIÇÃO AUTOMÁTICA DO REGISTRO NA PORTA A DO FIREBASE
+                    db.ref(`lojas/${LOJA_ID}/pedido_pronto_entrega/${id}`).remove();
                 }
             });
 
-            // SE O PEDIDO ATUAL FOI CANCELADO, LIMPA IMEDIATAMENTE COMO NO MAPA
-            if (idPedidoAtual !== "NENHUM" && (pedidosCancelados[idPedidoAtual] || (pedidosProntos[idPedidoAtual] && pedidosProntos[idPedidoAtual].status === "CANCELADO"))) {
+            const limpoAtual = idPedidoAtual.replace("#", "").trim();
+            if (idPedidoAtual !== "NENHUM" && (relatorioCanceladosGerais[limpoAtual] !== undefined || relatorioCanceladosGerais[idPedidoAtual] !== undefined || relatorioProducaoCancelada[limpoAtual] !== undefined)) {
+                alert(`🚨 [VIGIA] O pedido #${idPedidoAtual} foi cancelado! Removendo da tela.`);
                 if (watchId) navigator.geolocation.clearWatch(watchId);
                 emRota = false;
                 idPedidoAtual = "NENHUM";
@@ -319,7 +329,9 @@
 
         db.ref(`lojas/${LOJA_ID}/pedido_em_entrega`).on('value', async (snapshot) => {
             const pedido = snapshot.val();
-            if (pedido && pedido.id && !pedidosCancelados[pedido.id]) {
+            const limpoId = pedido && pedido.id ? pedido.id.replace("#", "").trim() : "";
+            
+            if (pedido && pedido.id && pedidosCancelados[limpoId] === undefined && pedidosCancelados[pedido.id] === undefined) {
                 idPedidoAtual = pedido.id;
                 document.getElementById('displayPedidoID').innerText = idPedidoAtual;
                 
@@ -362,7 +374,7 @@
             badgeQtd.innerText = todosIds.length;
 
             if (todosIds.length === 0) {
-                container.innerHTML = `<div class="text-center py-10 text-zinc-600 text-xs uppercase">Nenhum pedido pronto na cozinha</div>`;
+                container.innerHTML = `<div class="text-center py-10 text-zinc-600 text-xs uppercase">Aguardando liberação da cozinha (Porta A)</div>`;
                 return;
             }
 
@@ -377,7 +389,7 @@
                         <div class="flex-1 cursor-pointer" onclick="carregarPedidoProntoParaRota('${id}'); alternarPainelCorridas();">
                             <div class="flex justify-between items-center mb-1 pr-2">
                                 <span class="text-[10px] terminal-text text-zinc-500">${id}</span>
-                                <span class="text-[9px] font-black px-2 py-0.5 rounded uppercase bg-cyan-500 text-black">PRONTO PARA COLETA 📦</span>
+                                <span class="text-[9px] font-black px-2 py-0.5 rounded uppercase bg-cyan-500 text-black">VIGIA: LIBERADO 🛡️</span>
                             </div>
                             <div class="text-xs font-black text-white uppercase truncate">${mesa}</div>
                             <div class="text-[10px] text-zinc-400 mt-1">Total: R$ ${parseFloat(total).toFixed(2)}</div>
@@ -397,7 +409,10 @@
                 return;
             }
 
-            if (pedidosCancelados[id]) return alert("Este pedido foi cancelado!");
+            const limpoId = id.replace("#", "").trim();
+            if (pedidosCancelados[limpoId] !== undefined || pedidosCancelados[id] !== undefined) {
+                return alert("[VIGIA] Este pedido foi cancelado e bloqueado!");
+            }
 
             const pronto = pedidosProntos[id];
             if (!pronto) return;
@@ -429,7 +444,7 @@
 
             await db.ref(`lojas/${LOJA_ID}/pedido_em_entrega`).set(dadosCorridaComMotoboy);
 
-            await db.ref(`lojas/${LOJA_ID}/rastreio_ativo/${id}`).update({
+            await db.ref(`lojas/${LOJA_ID}/rastreio_ativo/${limpoId}`).update({
                 cliente_nome: clienteNome,
                 endereco: address,
                 latDestino: lat,
@@ -454,7 +469,10 @@
         async function alternarRastreamento() {
             if (!emRota) {
                 if (idPedidoAtual === "NENHUM") return alert("SELECIONE UM PEDIDO LIBERADO ANTES DE INICIAR!");
-                if (pedidosCancelados[idPedidoAtual]) return alert("Este pedido foi cancelado!");
+                const limpoAtual = idPedidoAtual.replace("#", "").trim();
+                if (pedidosCancelados[limpoAtual] !== undefined || pedidosCancelados[idPedidoAtual] !== undefined) {
+                    return alert("[VIGIA] Este pedido foi cancelado!");
+                }
                 if (!navigator.geolocation) return alert("Dispositivo sem suporte a GPS!");
 
                 emRota = true;
@@ -462,7 +480,7 @@
                 document.getElementById('statusGPS').innerText = "🟢 TRANSMITINDO";
                 document.getElementById('statusGPS').className = "text-[10px] terminal-text font-black text-green-400 uppercase border border-green-500/30 px-3 py-1 rounded bg-green-950/20";
 
-                db.ref(`lojas/${LOJA_ID}/rastreio_ativo/${idPedidoAtual}`).update({
+                db.ref(`lojas/${LOJA_ID}/rastreio_ativo/${limpoAtual}`).update({
                     status: "em_rota",
                     na_pista: true,
                     motoboy_nome: motoboySessao ? motoboySessao.nome : "MOTOBOY"
@@ -478,7 +496,7 @@
                         timestamp: Date.now() 
                     });
 
-                    db.ref(`lojas/${LOJA_ID}/rastreio_ativo/${idPedidoAtual}`).update({ latMotoboy: latitude, lngMotoboy: longitude });
+                    db.ref(`lojas/${LOJA_ID}/rastreio_ativo/${limpoAtual}`).update({ latMotoboy: latitude, lngMotoboy: longitude });
 
                     if (markerMotoboy) map.removeLayer(markerMotoboy);
                     markerMotoboy = L.marker([latitude, longitude], { icon: iconeMotoboy }).addTo(map)
@@ -492,10 +510,14 @@
 
         async function deletarPedidoEspecífico(id) {
             if (!confirm(`Deseja apagar o pedido #${id}?`)) return;
+            const limpoId = id.replace("#", "").trim();
             const updates = {};
-            updates[`lojas/${LOJA_ID}/pedido_pronto_entrega/${id}`] = null;
-            updates[`lojas/${LOJA_ID}/rastreio_ativo/${id}`] = null;
-            if (idPedidoAtual === id) { updates[`lojas/${LOJA_ID}/pedido_em_entrega`] = null; idPedidoAtual = "NENHUM"; }
+            updates[`lojas/${LOJA_ID}/pedido_pronto_entrega/${limpoId}`] = null;
+            updates[`lojas/${LOJA_ID}/rastreio_ativo/${limpoId}`] = null;
+            if (idPedidoAtual === id || idPedidoAtual.replace("#","").trim() === limpoId) {
+                updates[`lojas/${LOJA_ID}/pedido_em_entrega`] = null;
+                idPedidoAtual = "NENHUM";
+            }
             await db.ref().update(updates);
         }
 
@@ -517,15 +539,17 @@
             emRota = false;
             
             const pedidoId = idPedidoAtual;
+            const limpoId = pedidoId.replace("#", "").trim();
+            
             const finalUpdates = {};
-            finalUpdates[`lojas/${LOJA_ID}/pedidos_concluidos/${pedidoId}`] = { 
+            finalUpdates[`lojas/${LOJA_ID}/pedidos_concluidos/${limpoId}`] = { 
                 id: pedidoId, 
                 status: "CONCLUIDO", 
                 motoboy_nome: motoboySessao ? motoboySessao.nome : "MOTOBOY",
                 finalizado_em: firebase.database.ServerValue.TIMESTAMP 
             };
-            finalUpdates[`lojas/${LOJA_ID}/pedido_pronto_entrega/${pedidoId}`] = null;
-            finalUpdates[`lojas/${LOJA_ID}/rastreio_ativo/${pedidoId}`] = null;
+            finalUpdates[`lojas/${LOJA_ID}/pedido_pronto_entrega/${limpoId}`] = null;
+            finalUpdates[`lojas/${LOJA_ID}/rastreio_ativo/${limpoId}`] = null;
             finalUpdates[`lojas/${LOJA_ID}/pedido_em_entrega`] = null;
 
             await db.ref().update(finalUpdates);
