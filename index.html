@@ -283,21 +283,31 @@
             document.getElementById('painelLateral').classList.toggle('-translate-x-full');
         }
 
-        // ESCUTA ISOLADA DO NÓ DEDICADO DE COZINHA
+        // =========================================================================
+        // ESCUTA ISOLADA COM BLINDAGEM CONTRA PEDIDOS CANCELADOS (SOME DA TELA NA HORA)
+        // =========================================================================
         db.ref(`lojas/${LOJA_ID}`).on('value', snap => {
             const data = snap.val() || {};
             const dadosProntosExclusivos = data.pedido_pronto_entrega || {};
+            
+            // CAPTURA O NÓ DE PEDIDOS CANCELADOS DA LOJA
             pedidosCancelados = data.pedidos_cancelados || {};
             
             pedidosProntos = {};
             Object.keys(dadosProntosExclusivos).forEach(id => {
                 const p = dadosProntosExclusivos[id];
-                const estaCancelado = pedidosCancelados[id] || (p && p.status === "cancelado");
-                if (!estaCancelado && p) pedidosProntos[id] = p;
+                // VERIFICA RIGOROSAMENTE SE ESTÁ CANCELADO NA RAIZ OU NO STATUS
+                const estaCancelado = pedidosCancelados[id] || (p && (p.status === "cancelado" || p.status === "CANCELADO"));
+
+                // SE NÃO ESTIVER CANCELADO E EXISTIR, MANTÉM NA LISTA DO MOTOBOY
+                if (!estaCancelado && p) {
+                    pedidosProntos[id] = p;
+                }
             });
 
-            if (idPedidoAtual !== "NENHUM" && pedidosCancelados[idPedidoAtual]) {
-                alert(`⚠️ O pedido #${idPedidoAtual} foi cancelado! Removendo da tela.`);
+            // SE O PEDIDO ATIVO NA TELA DO MOTOBOY FOR CANCELADO, LIMPA TUDO IMEDIATAMENTE
+            if (idPedidoAtual !== "NENHUM" && (pedidosCancelados[idPedidoAtual] || (pedidosProntos[idPedidoAtual] && pedidosProntos[idPedidoAtual].status === "CANCELADO"))) {
+                alert(`⚠️ O pedido #${idPedidoAtual} foi cancelado pelo estabelecimento! Removendo da tela.`);
                 if (watchId) navigator.geolocation.clearWatch(watchId);
                 emRota = false;
                 idPedidoAtual = "NENHUM";
@@ -391,7 +401,7 @@
                 return;
             }
 
-            if (pedidosCancelados[id]) return alert("Este pedido foi cancelado!");
+            if (pedidosCancelados[id]) return alert("Este pedido foi cancelado e não pode ser carregado!");
 
             const pronto = pedidosProntos[id];
             if (!pronto) return;
@@ -409,7 +419,6 @@
 
             idPedidoAtual = id;
 
-            // CARIMBA O MOTOBOY LOGADO NA CORRIDA E NO RASTREIO ATIVO
             const dadosCorridaComMotoboy = {
                 id,
                 cliente: clienteNome,
@@ -449,6 +458,7 @@
         async function alternarRastreamento() {
             if (!emRota) {
                 if (idPedidoAtual === "NENHUM") return alert("SELECIONE UM PEDIDO LIBERADO ANTES DE INICIAR!");
+                if (pedidosCancelados[idPedidoAtual]) return alert("Este pedido foi cancelado!");
                 if (!navigator.geolocation) return alert("Dispositivo sem suporte a GPS!");
 
                 emRota = true;
