@@ -64,7 +64,7 @@
     <!-- BOTÃO FLUTUANTE SUPERIOR PARA ABRIR AS CORRIDAS -->
     <div class="absolute top-4 left-4 z-20">
         <button onclick="alternarPainelCorridas()" class="bg-[#020617]/90 border-2 border-cyan-500 hover:border-gold text-cyan-400 hover:text-gold px-4 py-3 rounded-xl shadow-[0_0_15px_rgba(6,182,212,0.4)] flex items-center gap-2 terminal-text text-xs font-black uppercase backdrop-blur-md transition-all">
-            <i class="fas fa-list-ul text-sm"></i> CORRIDAS DISPONÍVEIS
+            <i class="fas fa-list-ul text-sm"></i> CORRIDAS PRONTAS
             <span id="badgeQtd" class="bg-cyan-500 text-black px-2 py-0.5 rounded-full text-[10px] font-black ml-1">0</span>
         </button>
     </div>
@@ -73,16 +73,16 @@
     <div id="painelLateral" class="absolute top-0 left-0 h-full w-full md:w-[380px] bg-[#020617]/95 backdrop-blur-xl border-r-2 border-cyan-500 flex flex-col z-30 transform -translate-x-full shadow-2xl">
         <div class="p-4 border-b border-zinc-800 bg-[#070d19] flex justify-between items-center">
             <h2 class="terminal-text text-cyan-400 font-black text-xs tracking-widest flex items-center gap-2">
-                <i class="fas fa-satellite-dish animate-pulse"></i> FILA DE EXPEDIÇÃO
+                <i class="fas fa-satellite-dish animate-pulse"></i> LIBERADOS PELA COZINHA
             </h2>
             <div class="flex items-center gap-2">
-                <button onclick="limparTodosFantasmas()" class="text-red-500 hover:text-red-400 text-xs font-black px-2 py-1 border border-red-500/40 rounded bg-red-950/30 uppercase" title="Apagar todos os pedidos salvos"><i class="fas fa-trash-alt"></i> LIMPAR TUDO</button>
+                <button onclick="limparTodosFantasmas()" class="text-red-500 hover:text-red-400 text-xs font-black px-2 py-1 border border-red-500/40 rounded bg-red-950/30 uppercase" title="Apagar todos"><i class="fas fa-trash-alt"></i> LIMPAR</button>
                 <button onclick="alternarPainelCorridas()" class="text-zinc-400 hover:text-white text-lg p-1"><i class="fas fa-times"></i></button>
             </div>
         </div>
         
         <div class="flex-1 overflow-y-auto p-3 space-y-3" id="listaFilaGeral">
-            <p class="text-center text-zinc-600 text-xs py-10">Conectando ao banco de dados...</p>
+            <p class="text-center text-zinc-600 text-xs py-10">Aguardando a cozinha liberar pedidos...</p>
         </div>
     </div>
 
@@ -102,7 +102,7 @@
                     <span class="text-[10px] terminal-text text-cyan-400 border border-cyan-500/30 px-2 py-0.5 rounded">ID CARREGADO:</span>
                     <span id="displayPedidoID" class="text-[11px] terminal-text text-white font-black">NENHUM</span>
                 </div>
-                <p id="entCliente" class="text-gold font-black text-lg uppercase mt-1">AGUARDANDO PEDIDO...</p>
+                <p id="entCliente" class="text-gold font-black text-lg uppercase mt-1">AGUARDANDO LIBERAÇÃO DA COZINHA...</p>
                 <p id="entEndereco" class="text-zinc-400 text-xs uppercase truncate max-w-xs">---</p>
             </div>
             <div id="statusGPS" class="text-[10px] terminal-text font-black text-red-500 uppercase border border-red-500/30 px-3 py-1 rounded bg-red-950/20">🔴 OFFLINE</div>
@@ -111,7 +111,7 @@
         <!-- BOTÕES DE CONTROLE DE ROTA -->
         <div class="flex gap-2">
             <button id="btnRota" onclick="alternarRastreamento()" class="flex-1 bg-gold hover:bg-yellow-500 text-black font-black py-4 rounded-xl shadow-[0_0_15px_rgba(253,224,113,0.3)] uppercase terminal-text text-sm transition-all duration-200">INICIAR ROTA</button>
-            <button onclick="finalizarCorridaCompleta()" class="bg-red-600 hover:bg-red-700 text-white font-black px-5 rounded-xl transition-all duration-200 shadow-lg" title="Finalizar Corrida e Limpar Firebase"><i class="fas fa-check-double"></i> FINALIZAR</button>
+            <button onclick="finalizarCorridaCompleta()" class="bg-red-600 hover:bg-red-700 text-white font-black px-5 rounded-xl transition-all duration-200 shadow-lg" title="Finalizar Corrida"><i class="fas fa-check-double"></i> FINALIZAR</button>
         </div>
     </div>
 
@@ -121,7 +121,6 @@
         const db = firebase.database();
         const LOJA_ID = 'LEOVARDIOS_burguer_2026';
 
-        // Ícones customizados para diferenciar Cliente (Destino) do Motoboy
         const iconeCliente = L.icon({
             iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
             shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -146,24 +145,61 @@
 
         let markerCliente = null, markerMotoboy = null, watchId = null, emRota = false;
         let idPedidoAtual = "NENHUM";
-        let producaoPendentes = {}, rAtivos = {};
+        let producaoPendentes = {}, rAtivos = {}, pedidosCancelados = {};
 
         function alternarPainelCorridas() {
             const painel = document.getElementById('painelLateral');
             painel.classList.toggle('-translate-x-full');
         }
 
+        // ESCUTA DO BANCO DE DADOS: FILTRANDO COZINHA E BLOQUEANDO ITENS CANCELADOS
         db.ref(`lojas/${LOJA_ID}`).on('value', snap => {
             const data = snap.val() || {};
-            producaoPendentes = data.producao_pendente || {};
-            rAtivos = data.rastreio_ativo || {};
+            const dadosBrutosPendentes = data.producao_pendente || {};
+            pedidosCancelados = data.pedidos_cancelados || {};
+            
+            // TRAVA DE SEGURANÇA 1: Só aceita o que a cozinha marcou como PRONTO
+            // TRAVA DE SEGURANÇA 2: Exclui imediatamente se estiver em pedidos_cancelados
+            producaoPendentes = {};
+            Object.keys(dadosBrutosPendentes).forEach(id => {
+                const p = dadosBrutosPendentes[id];
+                const statusCozinha = (p.status || "").toUpperCase();
+                const estaCancelado = pedidosCancelados[id] || (p.status === "cancelado");
+
+                if (statusCozinha === "PRONTO" && !estaCancelado) {
+                    producaoPendentes[id] = p;
+                }
+            });
+
+            // Filtra também os rastreios ativos para ignorar se foram cancelados
+            rAtivos = {};
+            if (data.rastreio_ativo) {
+                Object.keys(data.rastreio_ativo).forEach(id => {
+                    if (!pedidosCancelados[id]) {
+                        rAtivos[id] = data.rastreio_ativo[id];
+                    }
+                });
+            }
+
+            // SE O PEDIDO ATUALMENTE SELECIONADO FOR CANCELADO, LIMPA TUDO IMEDIATAMENTE DA TELA DO MOTOBOY
+            if (idPedidoAtual !== "NENHUM" && pedidosCancelados[idPedidoAtual]) {
+                alert(`⚠️ O pedido #${idPedidoAtual} foi cancelado! Removendo da tela.`);
+                if (watchId) navigator.geolocation.clearWatch(watchId);
+                emRota = false;
+                idPedidoAtual = "NENHUM";
+                db.ref(`lojas/${LOJA_ID}/pedido_em_entrega`).remove();
+                if (markerCliente) { map.removeLayer(markerCliente); markerCliente = null; }
+                document.getElementById('displayPedidoID').innerText = "NENHUM";
+                document.getElementById('entCliente').innerText = "PEDIDO CANCELADO!";
+                document.getElementById('entEndereco').innerText = "---";
+            }
+
             processarFilaEVisualizacaoGeral();
         });
 
-        // LEITURA DIRETA DO PEDIDO ATIVO EM ENTREGA
         db.ref(`lojas/${LOJA_ID}/pedido_em_entrega`).on('value', async (snapshot) => {
             const pedido = snapshot.val();
-            if (pedido && pedido.id) {
+            if (pedido && pedido.id && !pedidosCancelados[pedido.id]) {
                 idPedidoAtual = pedido.id;
                 document.getElementById('displayPedidoID').innerText = idPedidoAtual;
                 
@@ -173,7 +209,6 @@
                 document.getElementById('entCliente').innerText = nomeCliente.toUpperCase();
                 document.getElementById('entEndereco').innerText = enderecoCliente.toUpperCase();
 
-                // Caso as coordenadas venham salvas ou precisem ser buscadas rigorosamente pelo nome do endereço
                 let lat = pedido.latDestino;
                 let lng = pedido.lngDestino;
 
@@ -190,7 +225,6 @@
                     markerCliente = L.marker([lat, lng], { icon: iconeCliente }).addTo(map)
                         .bindPopup(`<b>DESTINO CLIENTE:</b><br>${nomeCliente}<br>${enderecoCliente}`).openPopup();
                     
-                    // Centraliza no destino do cliente apenas se a rota ainda não tiver iniciado
                     if (!emRota) {
                         map.setView([lat, lng], 17);
                     }
@@ -199,7 +233,7 @@
                 if (!emRota) {
                     idPedidoAtual = "NENHUM";
                     document.getElementById('displayPedidoID').innerText = "NENHUM";
-                    document.getElementById('entCliente').innerText = "AGUARDANDO PEDIDO...";
+                    document.getElementById('entCliente').innerText = "AGUARDANDO LIBERAÇÃO DA COZINHA...";
                     document.getElementById('entEndereco').innerText = "---";
                     if (markerCliente) { map.removeLayer(markerCliente); markerCliente = null; }
                 }
@@ -214,7 +248,7 @@
             badgeQtd.innerText = todosIds.size;
 
             if (todosIds.size === 0) {
-                container.innerHTML = `<div class="text-center py-10 text-zinc-600 text-xs uppercase">Nenhum pedido disponível</div>`;
+                container.innerHTML = `<div class="text-center py-10 text-zinc-600 text-xs uppercase">Nenhum pedido pronto na cozinha</div>`;
                 return;
             }
 
@@ -225,15 +259,12 @@
 
                 let mesa = r?.cliente_nome || pendente?.mesa || pendente?.cliente_nome || "DELIVERY";
                 let total = pendente?.total || r?.total || 0;
-                let statusInfo = "AGUARDANDO";
-                let statusColor = "bg-red-500 text-white";
+                let statusInfo = "PRONTO PARA COLETA 📦";
+                let statusColor = "bg-cyan-500 text-black";
 
                 if (r && (r.na_pista === true || r.status === "em_rota")) {
                     statusInfo = "EM ROTA 🛵";
                     statusColor = "bg-green-500 text-black";
-                } else if ((pendente && (pendente.status === "PRONTO" || pendente.status === "Pendente")) || (r && (r.status === "PRONTO_PARA_ENTREGA" || r.status === "PRONTO"))) {
-                    statusInfo = "PRONTO / COLETAR 📦";
-                    statusColor = "bg-cyan-500 text-black";
                 }
 
                 html += `
@@ -246,7 +277,7 @@
                             <div class="text-xs font-black text-white uppercase truncate">${mesa}</div>
                             <div class="text-[10px] text-zinc-400 mt-1">Total: R$ ${parseFloat(total).toFixed(2)}</div>
                         </div>
-                        <button onclick="deletarPedidoEspecífico('${id}')" class="text-red-500 hover:text-red-400 p-2 text-sm" title="Apagar Pedido Fantasma">
+                        <button onclick="deletarPedidoEspecífico('${id}')" class="text-red-500 hover:text-red-400 p-2 text-sm" title="Apagar Pedido">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>`;
@@ -255,6 +286,11 @@
         }
 
         async function carregarPedidoProntoParaRota(id) {
+            if (pedidosCancelados[id]) {
+                alert("Este pedido foi cancelado e não pode ser carregado!");
+                return;
+            }
+
             const r = rAtivos[id];
             const pendente = producaoPendentes[id];
 
@@ -293,7 +329,6 @@
             });
         }
 
-        // MOTOR RIGOROSO DE GEOCODIFICAÇÃO PARA MANAUS
         async function geocodificarManausRigoroso(enderecoTexto) {
             if (!enderecoTexto) return null;
             try {
@@ -312,10 +347,10 @@
             return null;
         }
 
-        // --- SISTEMA DE RASTREIO E COMPARTILHAMENTO DE GPS DO MOTOBOY ---
         async function alternarRastreamento() {
             if (!emRota) {
-                if (idPedidoAtual === "NENHUM") return alert("SELECIONE UM PEDIDO ANTES DE INICIAR!");
+                if (idPedidoAtual === "NENHUM") return alert("SELECIONE UM PEDIDO LIBERADO ANTES DE INICIAR!");
+                if (pedidosCancelados[idPedidoAtual]) return alert("Este pedido foi cancelado!");
                 
                 if (!navigator.geolocation) {
                     return alert("Seu navegador ou dispositivo não suporta Geolocalização GPS!");
@@ -329,10 +364,9 @@
                 db.ref(`lojas/${LOJA_ID}/rastreio_ativo/${idPedidoAtual}`).update({ status: "em_rota", na_pista: true });
 
                 watchId = navigator.geolocation.watchPosition(pos => {
-                    if (!emRota || idPedidoAtual === "NENHUM") return;
+                    if (!emRota || idPedidoAtual === "NENHUM" || pedidosCancelados[idPedidoAtual]) return;
                     const { latitude, longitude, heading } = pos.coords;
 
-                    // Salva a posição GPS do motoboy no nó central sem sobrescrever o destino do cliente
                     db.ref(`lojas/${LOJA_ID}/motoboy_status`).set({ 
                         latitude, 
                         longitude, 
@@ -346,13 +380,12 @@
                         lngMotoboy: longitude 
                     });
 
-                    // Atualiza o marcador do MOTOBOY (Pino Azul) sem remover o pino do CLIENTE (Pino Vermelho)
                     if (markerMotoboy) map.removeLayer(markerMotoboy);
                     markerMotoboy = L.marker([latitude, longitude], { icon: iconeMotoboy }).addTo(map)
                         .bindPopup("<b>SUA LOCALIZAÇÃO (MOTOBOY)</b>").openPopup();
 
                 }, (err) => {
-                    alert("Erro ao obter GPS: " + err.message + ". Verifique se a localização está ativada no celular.");
+                    alert("Erro ao obter GPS: " + err.message);
                 }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
 
             } else {
@@ -361,11 +394,10 @@
         }
 
         async function deletarPedidoEspecífico(id) {
-            if (!confirm(`Deseja apagar o pedido #${id} do banco de dados?`)) return;
+            if (!confirm(`Deseja apagar o pedido #${id}?`)) return;
 
             const updates = {};
             updates[`lojas/${LOJA_ID}/rastreio_ativo/${id}`] = null;
-            updates[`lojas/${LOJA_ID}/producao_pendente/${id}`] = null;
             if (idPedidoAtual === id) {
                 updates[`lojas/${LOJA_ID}/pedido_em_entrega`] = null;
                 idPedidoAtual = "NENHUM";
@@ -374,11 +406,10 @@
         }
 
         async function limparTodosFantasmas() {
-            if (!confirm("Deseja LIMPAR TODOS os pedidos salvos e zerar a fila?")) return;
+            if (!confirm("Deseja LIMPAR os pedidos da tela do motoboy?")) return;
 
             const updates = {};
             updates[`lojas/${LOJA_ID}/rastreio_ativo`] = null;
-            updates[`lojas/${LOJA_ID}/producao_pendente`] = null;
             updates[`lojas/${LOJA_ID}/pedido_em_entrega`] = null;
             
             await db.ref().update(updates);
@@ -412,7 +443,7 @@
 
             await db.ref().update(finalUpdates);
 
-            alert("CORRIDA FINALIZADA E DADOS LIMPOS COM SUCESSO!");
+            alert("CORRIDA FINALIZADA COM SUCESSO!");
             location.reload();
         }
 
@@ -428,7 +459,7 @@
                 markerCliente = L.marker([coords.lat, coords.lng], { icon: iconeCliente }).addTo(map)
                     .bindPopup(`<b>DESTINO MANUAL:</b><br>${end}`).openPopup();
             } else {
-                alert("ENDEREÇO NÃO LOCALIZADO EM MANAUS! VERIFIQUE A RUA E O BAIRRO.");
+                alert("ENDEREÇO NÃO LOCALIZADO EM MANAUS!");
             }
         }
     </script>
