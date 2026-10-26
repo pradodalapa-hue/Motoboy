@@ -145,39 +145,31 @@
 
         let markerCliente = null, markerMotoboy = null, watchId = null, emRota = false;
         let idPedidoAtual = "NENHUM";
-        let pedidosProntos = {}, rAtivos = {}, pedidosCancelados = {};
+        let pedidosProntos = {}, pedidosCancelados = {};
 
         function alternarPainelCorridas() {
             const painel = document.getElementById('painelLateral');
             painel.classList.toggle('-translate-x-full');
         }
 
-        // ESCUTA EXCLUSIVA DO NOVO NÓ: pedido_pronto_entrega (e cancelamentos gerais)
+        // ==========================================
+        // ESCUTA ISOLADA E RESTRITA: SOMENTE pedido_pronto_entrega
+        // ==========================================
         db.ref(`lojas/${LOJA_ID}`).on('value', snap => {
             const data = snap.val() || {};
-            const dadosBrutosProntos = data.pedido_pronto_entrega || {};
+            const dadosProntosExclusivos = data.pedido_pronto_entrega || {};
             pedidosCancelados = data.pedidos_cancelados || {};
             
-            // FILTRA APENAS O QUE ESTÁ NO NÓ DE PEDIDO PRONTO E NÃO ESTÁ CANCELADO
+            // FILTRA APENAS O QUE ESTÁ NO NÓ EXCLUSIVO DA COZINHA E NÃO ESTÁ CANCELADO
             pedidosProntos = {};
-            Object.keys(dadosBrutosProntos).forEach(id => {
-                const p = dadosBrutosProntos[id];
-                const estaCancelado = pedidosCancelados[id] || (p.status === "cancelado");
+            Object.keys(dadosProntosExclusivos).forEach(id => {
+                const p = dadosProntosExclusivos[id];
+                const estaCancelado = pedidosCancelados[id] || (p && p.status === "cancelado");
 
-                if (!estaCancelado) {
+                if (!estaCancelado && p) {
                     pedidosProntos[id] = p;
                 }
             });
-
-            // Filtra rastreios ativos
-            rAtivos = {};
-            if (data.rastreio_ativo) {
-                Object.keys(data.rastreio_ativo).forEach(id => {
-                    if (!pedidosCancelados[id]) {
-                        rAtivos[id] = data.rastreio_ativo[id];
-                    }
-                });
-            }
 
             // SE O PEDIDO ATUALMENTE SELECIONADO FOR CANCELADO, LIMPA IMEDIATAMENTE
             if (idPedidoAtual !== "NENHUM" && pedidosCancelados[idPedidoAtual]) {
@@ -201,7 +193,7 @@
                 idPedidoAtual = pedido.id;
                 document.getElementById('displayPedidoID').innerText = idPedidoAtual;
                 
-                const nomeCliente = pedido.cliente || pedido.cliente_nome || "CLIENTE S/N";
+                const nomeCliente = pedido.cliente || pedido.cliente_nome || pedido.mesa || "CLIENTE S/N";
                 const enderecoCliente = pedido.endereco || "ENDEREÇO NÃO LOCALIZADO";
 
                 document.getElementById('entCliente').innerText = nomeCliente.toUpperCase();
@@ -241,11 +233,11 @@
         function processarFilaEVisualizacaoGeral() {
             const container = document.getElementById('listaFilaGeral');
             const badgeQtd = document.getElementById('badgeQtd');
-            const todosIds = new Set([...Object.keys(pedidosProntos), ...Object.keys(rAtivos)]);
+            const todosIds = Object.keys(pedidosProntos); // APENAS OS QUE VIERAM DA ESTEIRA DA COZINHA
 
-            badgeQtd.innerText = todosIds.size;
+            badgeQtd.innerText = todosIds.length;
 
-            if (todosIds.size === 0) {
+            if (todosIds.length === 0) {
                 container.innerHTML = `<div class="text-center py-10 text-zinc-600 text-xs uppercase">Nenhum pedido pronto na cozinha</div>`;
                 return;
             }
@@ -253,17 +245,11 @@
             let html = "";
             todosIds.forEach(id => {
                 const pronto = pedidosProntos[id];
-                const r = rAtivos[id];
 
-                let mesa = r?.cliente_nome || pronto?.cliente_nome || pronto?.mesa || "DELIVERY";
-                let total = pronto?.total || r?.total || 0;
+                let mesa = pronto?.cliente_nome || pronto?.mesa || "DELIVERY";
+                let total = pronto?.total || 0;
                 let statusInfo = "PRONTO PARA COLETA 📦";
                 let statusColor = "bg-cyan-500 text-black";
-
-                if (r && (r.na_pista === true || r.status === "em_rota")) {
-                    statusInfo = "EM ROTA 🛵";
-                    statusColor = "bg-green-500 text-black";
-                }
 
                 html += `
                     <div class="p-3 bg-[#0f172a] border border-zinc-800 rounded-lg hover:border-cyan-500 transition-all flex justify-between items-center">
@@ -289,13 +275,13 @@
                 return;
             }
 
-            const r = rAtivos[id];
             const pronto = pedidosProntos[id];
+            if (!pronto) return;
 
-            const clienteNome = r?.cliente_nome || pronto?.cliente_nome || pronto?.mesa || "CLIENTE S/N";
-            const address = r?.endereco || pronto?.endereco || "Manaus, Amazonas, Brasil";
-            let lat = r?.latDestino || pronto?.latDestino;
-            let lng = r?.lngDestino || pronto?.lngDestino;
+            const clienteNome = pronto?.cliente_nome || pronto?.mesa || "CLIENTE S/N";
+            const address = pronto?.endereco || "Manaus, Amazonas, Brasil";
+            let lat = pronto?.latDestino;
+            let lng = pronto?.lngDestino;
 
             if (!lat || !lng) {
                 const coordsObj = await geocodificarManausRigoroso(address);
@@ -395,6 +381,7 @@
             if (!confirm(`Deseja apagar o pedido #${id}?`)) return;
 
             const updates = {};
+            updates[`lojas/${LOJA_ID}/pedido_pronto_entrega/${id}`] = null;
             updates[`lojas/${LOJA_ID}/rastreio_ativo/${id}`] = null;
             if (idPedidoAtual === id) {
                 updates[`lojas/${LOJA_ID}/pedido_em_entrega`] = null;
@@ -407,6 +394,7 @@
             if (!confirm("Deseja LIMPAR os pedidos da tela do motoboy?")) return;
 
             const updates = {};
+            updates[`lojas/${LOJA_ID}/pedido_pronto_entrega`] = null;
             updates[`lojas/${LOJA_ID}/rastreio_ativo`] = null;
             updates[`lojas/${LOJA_ID}/pedido_em_entrega`] = null;
             
@@ -434,8 +422,8 @@
                 status: "CONCLUIDO", 
                 finalizado_em: firebase.database.ServerValue.TIMESTAMP 
             };
-            finalUpdates[`lojas/${LOJA_ID}/rastreio_ativo/${pedidoId}`] = null;
             finalUpdates[`lojas/${LOJA_ID}/pedido_pronto_entrega/${pedidoId}`] = null;
+            finalUpdates[`lojas/${LOJA_ID}/rastreio_ativo/${pedidoId}`] = null;
             finalUpdates[`lojas/${LOJA_ID}/pedido_em_entrega`] = null;
             finalUpdates[`lojas/${LOJA_ID}/motoboy_status`] = { online: false, timestamp: Date.now() };
 
